@@ -165,8 +165,6 @@ class Pytorch3dRasterizer(nn.Module):
         pixel_vals[mask] = 0  # Replace masked values in output.
         pixel_vals = pixel_vals[:,:,:,0].permute(0,3,1,2)
         pixel_vals = torch.cat([pixel_vals, vismask[:,:,:,0][:,None,:,:]], dim=1)
-        # print(image_size)
-        # import ipdb; ipdb.set_trace()
         return pixel_vals
 
 class SRenderY(nn.Module):
@@ -251,7 +249,81 @@ class SRenderY(nn.Module):
         alpha_images = rendering[:, -1, :, :][:, None, :, :].detach()
 
         # albedo
-        uvcoords_images = rendering[:, :3, :, :]; grid = (uvcoords_images).permute(0, 2, 3, 1)[:, :, :, :2]
+        uvcoords_images = rendering[:, :3, :, :]; 
+        grid = (uvcoords_images).permute(0, 2, 3, 1)[:, :, :, :2]
+        albedo_images = F.grid_sample(albedos, grid, align_corners=False)
+
+        # visible mask for pixels with positive normal direction
+        transformed_normal_map = rendering[:, 3:6, :, :].detach()
+        pos_mask = (transformed_normal_map[:, 2:, :, :] < -0.05).float()
+
+        # shading
+        normal_images = rendering[:, 9:12, :, :]
+        if lights is not None:
+            if lights.shape[1] == 9:
+                shading_images = self.add_SHlight(normal_images, lights)
+            else:
+                if light_type=='point':
+                    vertice_images = rendering[:, 6:9, :, :].detach()
+                    shading = self.add_pointlight(vertice_images.permute(0,2,3,1).reshape([batch_size, -1, 3]), normal_images.permute(0,2,3,1).reshape([batch_size, -1, 3]), lights)
+                    shading_images = shading.reshape([batch_size, albedo_images.shape[2], albedo_images.shape[3], 3]).permute(0,3,1,2)
+                else:
+                    shading = self.add_directionlight(normal_images.permute(0,2,3,1).reshape([batch_size, -1, 3]), lights)
+                    shading_images = shading.reshape([batch_size, albedo_images.shape[2], albedo_images.shape[3], 3]).permute(0,3,1,2)
+            images = albedo_images*shading_images
+        else:
+            images = albedo_images
+            shading_images = images.detach()*0.
+
+        outputs = {
+            'images': images*alpha_images,
+            'albedo_images': albedo_images*alpha_images,
+            'alpha_images': alpha_images,
+            'pos_mask': pos_mask,
+            'shading_images': shading_images,
+            'grid': grid,
+            'normals': normals,
+            'normal_images': normal_images*alpha_images,
+            'transformed_normals': transformed_normals,
+        }
+        
+        return outputs
+
+    def render_dense(self, vertices, faces, face_uvcoords, transformed_vertices, albedos, lights=None, light_type='point'):
+        '''
+        -- Texture Rendering
+        vertices: [batch_size, V, 3], vertices in world space, for calculating normals, then shading
+        transformed_vertices: [batch_size, V, 3], range:normalized to [-1,1], projected vertices in image space (that is aligned to the iamge pixel), for rasterization
+        albedos: [batch_size, 3, h, w], uv map
+        lights: 
+            spherical homarnic: [N, 9(shcoeff), 3(rgb)]
+            points/directional lighting: [N, n_lights, 6(xyzrgb)]
+        light_type:
+            point or directional
+        '''
+        batch_size = vertices.shape[0]
+        ## rasterizer near 0 far 100. move mesh so minz larger than 0
+        transformed_vertices[:,:,2] = transformed_vertices[:,:,2] + 10
+        # attributes
+        face_vertices = util.face_vertices(vertices, faces.expand(batch_size, -1, -1))
+        normals = util.vertex_normals(vertices, faces.expand(batch_size, -1, -1)); face_normals = util.face_vertices(normals, faces.expand(batch_size, -1, -1))
+        transformed_normals = util.vertex_normals(transformed_vertices, faces.expand(batch_size, -1, -1)); transformed_face_normals = util.face_vertices(transformed_normals, faces.expand(batch_size, -1, -1))
+        
+        attributes = torch.cat([face_uvcoords.expand(batch_size, -1, -1, -1), 
+                                transformed_face_normals.detach(), 
+                                face_vertices.detach(), 
+                                face_normals], 
+                                -1)
+        # rasterize
+        rendering = self.rasterizer(transformed_vertices, faces.expand(batch_size, -1, -1), attributes)
+        
+        ####
+        # vis mask
+        alpha_images = rendering[:, -1, :, :][:, None, :, :].detach()
+
+        # albedo
+        uvcoords_images = rendering[:, :3, :, :]; 
+        grid = (uvcoords_images).permute(0, 2, 3, 1)[:, :, :, :2]
         albedo_images = F.grid_sample(albedos, grid, align_corners=False)
 
         # visible mask for pixels with positive normal direction
@@ -448,4 +520,15 @@ class SRenderY(nn.Module):
         batch_size = vertices.shape[0]
         face_vertices = util.face_vertices(vertices, self.faces.expand(batch_size, -1, -1))
         uv_vertices = self.uv_rasterizer(self.uvcoords.expand(batch_size, -1, -1), self.uvfaces.expand(batch_size, -1, -1), face_vertices)[:, :3]
+        return uv_vertices
+
+    def world2uv_dense(self, dense_vertices, dense_faces, dense_uvcoords, dense_uvfaces):
+        '''
+        warp vertices from world space to uv space
+        vertices: [bz, V, 3]
+        uv_vertices: [bz, 3, h, w]
+        '''
+        batch_size = dense_vertices.shape[0]
+        dense_face_vertices = util.face_vertices(dense_vertices, dense_faces.expand(batch_size, -1, -1))
+        uv_vertices = self.uv_rasterizer(dense_uvcoords.expand(batch_size, -1, -1), dense_uvfaces.expand(batch_size, -1, -1), dense_face_vertices)[:, :3]
         return uv_vertices

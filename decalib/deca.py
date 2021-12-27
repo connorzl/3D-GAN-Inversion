@@ -34,6 +34,7 @@ from .utils.tensor_cropper import transform_points
 from .datasets import datasets
 from .utils.config import cfg
 torch.backends.cudnn.benchmark = True
+from torchvision.utils import save_image
 
 class DECA(nn.Module):
     def __init__(self, config=None, device='cuda'):
@@ -174,6 +175,7 @@ class DECA(nn.Module):
         landmarks2d = util.batch_orth_proj(landmarks2d, codedict['cam'])[:,:,:2]; landmarks2d[:,:,1:] = -landmarks2d[:,:,1:]#; landmarks2d = landmarks2d*self.image_size/2 + self.image_size/2
         landmarks3d = util.batch_orth_proj(landmarks3d, codedict['cam']); landmarks3d[:,:,1:] = -landmarks3d[:,:,1:] #; landmarks3d = landmarks3d*self.image_size/2 + self.image_size/2
         trans_verts = util.batch_orth_proj(verts, codedict['cam']); trans_verts[:,:,1:] = -trans_verts[:,:,1:]
+
         opdict = {
             'verts': verts,
             'trans_verts': trans_verts,
@@ -184,7 +186,23 @@ class DECA(nn.Module):
 
         ## rendering
         if rendering:
-            ops = self.render(verts, trans_verts, albedo, codedict['light'])
+            uv_z = self.D_detail(torch.cat([codedict['pose'][:,3:], codedict['exp'], codedict['detail']], dim=1))
+            if iddict is not None:
+                uv_z = self.D_detail(torch.cat([iddict['pose'][:,3:], iddict['exp'], codedict['detail']], dim=1))
+            normals = util.vertex_normals(verts, self.render.faces.expand(batch_size, -1, -1))
+            uv_detail_normals = self.displacement2normal(uv_z, verts, normals)
+            uv_shading = self.render.add_SHlight(uv_detail_normals, codedict['light'])
+            uv_texture = albedo*uv_shading
+
+            uv_pverts = self.render.world2uv(trans_verts)
+            uv_gt = F.grid_sample(images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear')
+            if self.cfg.model.use_tex:
+                uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-self.uv_face_eye_mask))
+            else:
+                uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (torch.ones_like(uv_gt[:,:3,:,:])*(1-self.uv_face_eye_mask)*0.7)
+            # Render the coarse mesh using the texture map.
+            ops = self.render(verts, trans_verts, uv_texture_gt, codedict['light'])
+            
             ## output
             opdict['grid'] = ops['grid']
             opdict['rendered_images'] = ops['images']
@@ -223,6 +241,7 @@ class DECA(nn.Module):
                 background = original_image
                 images = original_image
             else:
+                print("no tform available")
                 h, w = self.image_size, self.image_size
                 background = None
             ## render shape
@@ -239,8 +258,9 @@ class DECA(nn.Module):
                 uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-self.uv_face_eye_mask))
             else:
                 uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (torch.ones_like(uv_gt[:,:3,:,:])*(1-self.uv_face_eye_mask)*0.7)
-            
             opdict['uv_texture_gt'] = uv_texture_gt
+            #save_image(uv_texture_gt[0].cpu(), "/orion/u/connorzl/projects/S-GAN/stylegan3/DECA/TestSamples/examples/results_biden/coarse_uv_texture.png")
+            
             visdict = {
                 'inputs': images, 
                 'landmarks2d': util.tensor_vis_landmarks(images, landmarks2d),
@@ -250,6 +270,38 @@ class DECA(nn.Module):
             }
             if self.cfg.model.use_tex:
                 visdict['rendered_images'] = ops['images']
+
+            # Render the detailed mesh.
+            vertices = opdict['verts'][0].cpu().numpy()
+            faces = self.render.faces[0].cpu().numpy()
+            texture = util.tensor2image(opdict['uv_texture_gt'][0])
+            texture = texture[:,:,[2,1,0]]
+            normals = opdict['normals'][0].cpu().numpy()
+            displacement_map = opdict['displacement_map'][0].cpu().numpy().squeeze()
+            dense_vertices, dense_colors, dense_faces, dense_uvcoords, dense_uvfaces = util.upsample_mesh(vertices, normals, faces, displacement_map, texture, self.dense_template)
+
+            # Normalize UV coordinates.
+            dense_uvcoords = torch.from_numpy(dense_uvcoords).cuda().unsqueeze(0) / 256
+            dense_uvcoords = torch.cat([dense_uvcoords, dense_uvcoords[:,:,0:1]*0.+1.], -1) #[bz, ntv, 3]
+            dense_uvcoords = dense_uvcoords*2 - 1
+            dense_uvfaces = torch.from_numpy(dense_uvfaces).cuda().unsqueeze(0)
+
+            # Transform vertices.
+            dense_vertices = torch.from_numpy(dense_vertices.astype(np.float32)).unsqueeze(0).cuda()
+            dense_trans_verts = util.batch_orth_proj(dense_vertices, codedict['cam'])
+            dense_trans_verts[:,:,1:] = -dense_trans_verts[:,:,1:]
+            dense_faces = torch.from_numpy(dense_faces).cuda().unsqueeze(0)
+
+            uv_pverts = self.render.world2uv_dense(dense_trans_verts, dense_faces, dense_uvcoords, dense_uvfaces)
+            uv_gt = F.grid_sample(images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear')
+            if self.cfg.model.use_tex:
+                uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-self.uv_face_eye_mask))
+            else:
+                uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (torch.ones_like(uv_gt[:,:3,:,:])*(1-self.uv_face_eye_mask)*0.7)
+            #save_image(uv_texture_gt[0].cpu(), "/orion/u/connorzl/projects/S-GAN/stylegan3/DECA/TestSamples/examples/results_biden/dense_uv_texture.png")
+
+            ops = self.render.render_dense(dense_vertices, dense_faces, util.face_vertices(dense_uvcoords, dense_uvfaces), dense_trans_verts, uv_texture_gt, codedict['light'])
+            visdict['rendered_images_detailed'] = ops['images']
 
             return opdict, visdict
 
@@ -293,15 +345,16 @@ class DECA(nn.Module):
                         uvcoords=uvcoords, 
                         uvfaces=uvfaces, 
                         normal_map=normal_map)
+
         # upsample mesh, save detailed mesh
         texture = texture[:,:,[2,1,0]]
         normals = opdict['normals'][i].cpu().numpy()
         displacement_map = opdict['displacement_map'][i].cpu().numpy().squeeze()
-        dense_vertices, dense_colors, dense_faces = util.upsample_mesh(vertices, normals, faces, displacement_map, texture, self.dense_template)
+        dense_vertices, dense_colors, dense_faces, _, _ = util.upsample_mesh(vertices, normals, faces, displacement_map, texture, self.dense_template)
         util.write_obj(filename.replace('.obj', '_detail.obj'), 
                         dense_vertices, 
                         dense_faces,
-                        # colors = dense_colors,
+                        colors = dense_colors,
                         inverse_face_order=True)
     
     def run(self, imagepath, iscrop=True):

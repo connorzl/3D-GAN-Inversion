@@ -58,7 +58,16 @@ def upsample_mesh(vertices, normals, faces, displacement_map, texture_map, dense
     dense_colors = texture_map[y_coords[valid_pixel_ids].astype(int), x_coords[valid_pixel_ids].astype(int)]
     offsets = np.einsum('i,ij->ij', displacements, pixel_3d_normals)
     dense_vertices = pixel_3d_points + offsets
-    return dense_vertices, dense_colors, dense_faces
+
+    # Compute texture information for detailed mesh
+    dense_uv_coords = np.stack([x_coords.astype(int), y_coords.astype(int)], 1)
+
+    dense_uvfaces_v0 = valid_pixel_ids[dense_faces[:, 0]]
+    dense_uvfaces_v1 = valid_pixel_ids[dense_faces[:, 1]]
+    dense_uvfaces_v2 = valid_pixel_ids[dense_faces[:, 2]]
+    dense_uvfaces = np.stack([dense_uvfaces_v0, dense_uvfaces_v1, dense_uvfaces_v2], 1)
+    
+    return dense_vertices, dense_colors, dense_faces, dense_uv_coords, dense_uvfaces
 
 # borrowed from https://github.com/YadiraF/PRNet/blob/master/utils/write.py
 def write_obj(obj_name,

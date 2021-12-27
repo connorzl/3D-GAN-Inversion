@@ -43,7 +43,7 @@ def main(args):
     deca_cfg.model.use_tex = args.useTex
     deca_cfg.rasterizer_type = args.rasterizer_type
     deca = DECA(config = deca_cfg, device=device)
-    # for i in range(len(testdata)):
+
     for i in tqdm(range(len(testdata))):
         name = testdata[i]['imagename']
         images = testdata[i]['image'].to(device)[None,...]
@@ -56,7 +56,6 @@ def main(args):
                 original_image = testdata[i]['original_image'][None, ...].to(device)
                 _, orig_visdict = deca.decode(codedict, render_orig=True, original_image=original_image, tform=tform)    
                 orig_visdict['inputs'] = original_image            
-
         if args.saveDepth or args.saveKpt or args.saveObj or args.saveMat or args.saveImages:
             os.makedirs(os.path.join(savefolder, name), exist_ok=True)
         # -- save results
@@ -77,7 +76,7 @@ def main(args):
             if args.render_orig:
                 cv2.imwrite(os.path.join(savefolder, name + '_vis_original_size.jpg'), deca.visualize(orig_visdict))
         if args.saveImages:
-            for vis_name in ['inputs', 'rendered_images', 'albedo_images', 'shape_images', 'shape_detail_images', 'landmarks2d']:
+            for vis_name in ['inputs', 'rendered_images', 'rendered_images_detailed', 'albedo_images', 'shape_images', 'shape_detail_images', 'landmarks2d']:
                 if vis_name not in visdict.keys():
                     continue
                 image = util.tensor2image(visdict[vis_name][0])
@@ -92,7 +91,7 @@ if __name__ == '__main__':
 
     parser.add_argument('-i', '--inputpath', default='TestSamples/examples', type=str,
                         help='path to the test data, can be image folder, image path, image list, video')
-    parser.add_argument('-s', '--savefolder', default='TestSamples/examples/results', type=str,
+    parser.add_argument('-s', '--savefolder', default='TestSamples/examples/results_biden', type=str,
                         help='path to the output directory, where results(obj, txt files) will be stored.')
     parser.add_argument('--device', default='cuda', type=str,
                         help='set device, cpu for using cpu' )
