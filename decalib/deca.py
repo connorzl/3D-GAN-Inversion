@@ -44,7 +44,7 @@ class DECA(nn.Module):
         else:
             self.cfg = config
         self.device = device
-        self.image_size = self.cfg.dataset.image_size
+        self.image_size = self.cfg.model.texture_image_size
         self.uv_size = self.cfg.model.uv_size
 
         self._create_model(self.cfg.model)
@@ -163,6 +163,7 @@ class DECA(nn.Module):
     def decode(self, codedict, rendering=True, iddict=None, vis_lmk=True, return_vis=True, use_detail=True,
                 render_orig=False, original_image=None, tform=None):
         images = codedict['images']
+        hr_images = codedict['hr_images']
         batch_size = images.shape[0]
         
         ## decode
@@ -176,13 +177,6 @@ class DECA(nn.Module):
         ## projection
         landmarks2d = util.batch_orth_proj(landmarks2d, codedict['cam'])[:,:,:2]; landmarks2d[:,:,1:] = -landmarks2d[:,:,1:]#; landmarks2d = landmarks2d*self.image_size/2 + self.image_size/2
         landmarks3d = util.batch_orth_proj(landmarks3d, codedict['cam']); landmarks3d[:,:,1:] = -landmarks3d[:,:,1:] #; landmarks3d = landmarks3d*self.image_size/2 + self.image_size/2
-
-        # print('DETAIL')
-        # print(dense_vertices.shape, dense_vertices[..., 0].min(), dense_vertices[..., 0].max())
-        # print(dense_vertices.shape, dense_vertices[..., 1].min(), dense_vertices[..., 2].max())
-        # print(dense_vertices.shape, dense_vertices[..., 2].min(), dense_vertices[..., 2].max())
-        # print()
-
         trans_verts = util.batch_orth_proj(verts, codedict['cam']); trans_verts[:,:,1:] = -trans_verts[:,:,1:]
 
         opdict = {
@@ -203,12 +197,19 @@ class DECA(nn.Module):
             uv_shading = self.render.add_SHlight(uv_detail_normals, codedict['light'])
             uv_texture = albedo*uv_shading
 
+            opdict['uv_texture'] = uv_texture 
+            opdict['normals'] = normals
+            opdict['uv_detail_normals'] = uv_detail_normals
+            opdict['displacement_map'] = uv_z+self.fixed_uv_dis[None,None,:,:]
+
             uv_pverts = self.render.world2uv(trans_verts)
-            uv_gt = F.grid_sample(images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear')
+            uv_gt = F.grid_sample(hr_images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear')
             if self.cfg.model.use_tex:
                 uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-self.uv_face_eye_mask))
             else:
                 uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (torch.ones_like(uv_gt[:,:3,:,:])*(1-self.uv_face_eye_mask)*0.7)
+            opdict['uv_texture_gt'] = uv_texture_gt
+            save_image(uv_texture_gt[0].cpu(), "./coarse_uv_texture.png")
             # Render the coarse mesh using the texture map.
             ops = self.render(verts, trans_verts, uv_texture_gt, codedict['light'])
             
@@ -220,20 +221,7 @@ class DECA(nn.Module):
         
         if self.cfg.model.use_tex:
             opdict['albedo'] = albedo
-            
-        if use_detail:
-            uv_z = self.D_detail(torch.cat([codedict['pose'][:,3:], codedict['exp'], codedict['detail']], dim=1))
-            if iddict is not None:
-                uv_z = self.D_detail(torch.cat([iddict['pose'][:,3:], iddict['exp'], codedict['detail']], dim=1))
-            uv_detail_normals = self.displacement2normal(uv_z, verts, ops['normals'])
-            uv_shading = self.render.add_SHlight(uv_detail_normals, codedict['light'])
-            uv_texture = albedo*uv_shading
 
-            opdict['uv_texture'] = uv_texture 
-            opdict['normals'] = ops['normals']
-            opdict['uv_detail_normals'] = uv_detail_normals
-            opdict['displacement_map'] = uv_z+self.fixed_uv_dis[None,None,:,:]
-        
         if vis_lmk:
             landmarks3d_vis = self.visofp(ops['transformed_normals'])#/self.image_size
             landmarks3d = torch.cat([landmarks3d, landmarks3d_vis], dim=2)
@@ -258,20 +246,9 @@ class DECA(nn.Module):
             detail_normal_images = F.grid_sample(uv_detail_normals, grid, align_corners=False)*alpha_images
             shape_detail_images = self.render.render_shape(verts, trans_verts, detail_normal_images=detail_normal_images, h=h, w=w, images=background)
             
-            ## extract texture
-            ## TODO: current resolution 256x256, support higher resolution, and add visibility
-            uv_pverts = self.render.world2uv(trans_verts, debug=True)
-            uv_gt = F.grid_sample(images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear')
-            if self.cfg.model.use_tex:
-                ## TODO: poisson blending should give better-looking results
-                uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-self.uv_face_eye_mask))
-            else:
-                uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (torch.ones_like(uv_gt[:,:3,:,:])*(1-self.uv_face_eye_mask)*0.7)
-            opdict['uv_texture_gt'] = uv_texture_gt
-            save_image(uv_texture_gt[0].cpu(), "./coarse_uv_texture.png")
-            
             visdict = {
                 'inputs': images, 
+                'hr_inputs': hr_images,
                 'landmarks2d': util.tensor_vis_landmarks(images, landmarks2d),
                 'landmarks3d': util.tensor_vis_landmarks(images, landmarks3d),
                 'shape_images': shape_images,
@@ -303,7 +280,7 @@ class DECA(nn.Module):
 
             uv_pverts = self.render.world2uv_dense(dense_trans_verts, dense_faces, dense_uvcoords, dense_uvfaces, debug=True)
 
-            uv_gt = F.grid_sample(images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear')
+            uv_gt = F.grid_sample(hr_images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear')
             if self.cfg.model.use_tex:
                 uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-self.uv_face_eye_mask))
             else:
@@ -312,7 +289,6 @@ class DECA(nn.Module):
 
             ops = self.render.render_dense(dense_vertices, dense_faces, util.face_vertices(dense_uvcoords, dense_uvfaces), dense_trans_verts, uv_texture_gt, codedict['light'])
             visdict['rendered_images_detailed'] = ops['images']
-
             return opdict, visdict
 
         else:

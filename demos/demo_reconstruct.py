@@ -47,8 +47,10 @@ def main(args):
     for i in tqdm(range(len(testdata))):
         name = testdata[i]['imagename']
         images = testdata[i]['image'].to(device)[None,...]
+        hr_images = testdata[i]['hr_image'].to(device)[None,...]
         with torch.no_grad():
             codedict = deca.encode(images)
+            codedict['hr_images'] = hr_images
             opdict, visdict = deca.decode(codedict) #tensor
             if args.render_orig:
                 tform = testdata[i]['tform'][None, ...]
@@ -82,7 +84,7 @@ def main(args):
             if args.render_orig:
                 cv2.imwrite(os.path.join(savefolder, name + '_vis_original_size.jpg'), deca.visualize(orig_visdict))
         if args.saveImages:
-            for vis_name in ['inputs', 'rendered_images', 'rendered_images_detailed', 'albedo_images', 'shape_images', 'shape_detail_images', 'landmarks2d']:
+            for vis_name in ['inputs', 'hr_inputs', 'rendered_images', 'rendered_images_detailed', 'albedo_images', 'shape_images', 'shape_detail_images', 'landmarks2d']:
                 if vis_name not in visdict.keys():
                     continue
                 image = util.tensor2image(visdict[vis_name][0])

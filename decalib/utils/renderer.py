@@ -115,6 +115,7 @@ class Pytorch3dRasterizer(nn.Module):
     """
 
     def __init__(self, image_size=224):
+        print("IMAGE_SIZE:", image_size)
         """
         use fixed raster_settings for rendering faces
         """
