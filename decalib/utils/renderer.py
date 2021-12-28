@@ -38,11 +38,12 @@ def set_rasterizer(type = 'pytorch3d'):
         standard_rasterize_cuda = \
             load(name='standard_rasterize_cuda', 
                 sources=[f'{curr_dir}/rasterizer/standard_rasterize_cuda.cpp', f'{curr_dir}/rasterizer/standard_rasterize_cuda_kernel.cu'], 
-                extra_cuda_cflags = ['-std=c++14', '-ccbin=$$(which gcc-7)']) # cuda10.2 is not compatible with gcc9. Specify gcc 7 
+                extra_cuda_cflags = ['-std=c++14', '-ccbin=$$(which gcc)']) # cuda10.2 is not compatible with gcc9. Specify gcc 7 
         from standard_rasterize_cuda import standard_rasterize
         # If JIT does not work, try manually installation first
         # 1. see instruction here: pixielib/utils/rasterizer/INSTALL.md
         # 2. add this: "from .rasterizer.standard_rasterize_cuda import standard_rasterize" here
+        # from .rasterizer.standard_rasterize_cuda import standard_rasterize
 
 class StandardRasterizer(nn.Module):
     """ Alg: https://www.scratchapixel.com/lessons/3d-basic-rendering/rasterization-practical-implementation
@@ -129,7 +130,8 @@ class Pytorch3dRasterizer(nn.Module):
         raster_settings = util.dict2obj(raster_settings)
         self.raster_settings = raster_settings
 
-    def forward(self, vertices, faces, attributes=None, h=None, w=None):
+    def forward(self, vertices, faces, attributes=None, h=None, w=None, debug=False):
+
         fixed_vertices = vertices.clone()
         fixed_vertices[...,:2] = -fixed_vertices[...,:2]
         raster_settings = self.raster_settings
@@ -147,11 +149,12 @@ class Pytorch3dRasterizer(nn.Module):
             meshes_screen,
             image_size=image_size,
             blur_radius=raster_settings.blur_radius,
-            faces_per_pixel=raster_settings.faces_per_pixel,
-            bin_size=raster_settings.bin_size,
+            faces_per_pixel=1, #raster_settings.faces_per_pixel,
+            bin_size=0, #raster_settings.bin_size,
             max_faces_per_bin=raster_settings.max_faces_per_bin,
             perspective_correct=raster_settings.perspective_correct,
         )
+
         vismask = (pix_to_face > -1).float()
         D = attributes.shape[-1]
         attributes = attributes.clone(); attributes = attributes.view(attributes.shape[0]*attributes.shape[1], 3, attributes.shape[-1])
@@ -162,6 +165,7 @@ class Pytorch3dRasterizer(nn.Module):
         idx = pix_to_face.view(N * H * W * K, 1, 1).expand(N * H * W * K, 3, D)
         pixel_face_vals = attributes.gather(0, idx).view(N, H, W, K, 3, D)
         pixel_vals = (bary_coords[..., None] * pixel_face_vals).sum(dim=-2)
+
         pixel_vals[mask] = 0  # Replace masked values in output.
         pixel_vals = pixel_vals[:,:,:,0].permute(0,3,1,2)
         pixel_vals = torch.cat([pixel_vals, vismask[:,:,:,0][:,None,:,:]], dim=1)
@@ -366,6 +370,7 @@ class SRenderY(nn.Module):
         '''
             sh_coeff: [bz, 9, 3]
         '''
+
         N = normal_images
         sh = torch.stack([
                 N[:,0]*0.+1., N[:,0], N[:,1], \
@@ -511,7 +516,7 @@ class SRenderY(nn.Module):
         images = rendering[:, :3, :, :]* alpha_images
         return images
 
-    def world2uv(self, vertices):
+    def world2uv(self, vertices, debug=False):
         '''
         warp vertices from world space to uv space
         vertices: [bz, V, 3]
@@ -519,10 +524,10 @@ class SRenderY(nn.Module):
         '''
         batch_size = vertices.shape[0]
         face_vertices = util.face_vertices(vertices, self.faces.expand(batch_size, -1, -1))
-        uv_vertices = self.uv_rasterizer(self.uvcoords.expand(batch_size, -1, -1), self.uvfaces.expand(batch_size, -1, -1), face_vertices)[:, :3]
+        uv_vertices = self.uv_rasterizer(self.uvcoords.expand(batch_size, -1, -1), self.uvfaces.expand(batch_size, -1, -1), attributes=face_vertices, debug=debug)[:, :3]
         return uv_vertices
 
-    def world2uv_dense(self, dense_vertices, dense_faces, dense_uvcoords, dense_uvfaces):
+    def world2uv_dense(self, dense_vertices, dense_faces, dense_uvcoords, dense_uvfaces, debug=False):
         '''
         warp vertices from world space to uv space
         vertices: [bz, V, 3]
@@ -530,5 +535,5 @@ class SRenderY(nn.Module):
         '''
         batch_size = dense_vertices.shape[0]
         dense_face_vertices = util.face_vertices(dense_vertices, dense_faces.expand(batch_size, -1, -1))
-        uv_vertices = self.uv_rasterizer(dense_uvcoords.expand(batch_size, -1, -1), dense_uvfaces.expand(batch_size, -1, -1), dense_face_vertices)[:, :3]
+        uv_vertices = self.uv_rasterizer(dense_uvcoords.expand(batch_size, -1, -1), dense_uvfaces.expand(batch_size, -1, -1), attributes=dense_face_vertices, debug=debug)[:, :3]
         return uv_vertices

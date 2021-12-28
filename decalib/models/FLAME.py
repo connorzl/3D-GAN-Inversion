@@ -245,6 +245,7 @@ class FLAMETex(nn.Module):
             print('texture type ', config.tex_type, 'not exist!')
             raise NotImplementedError
 
+        self.uv_size = config.uv_size
         n_tex = config.n_tex
         num_components = texture_basis.shape[1]
         texture_mean = torch.from_numpy(texture_mean).float()[None,...]
@@ -259,6 +260,6 @@ class FLAMETex(nn.Module):
         '''
         texture = self.texture_mean + (self.texture_basis*texcode[:,None,:]).sum(-1)
         texture = texture.reshape(texcode.shape[0], 512, 512, 3).permute(0,3,1,2)
-        texture = F.interpolate(texture, [256, 256])
+        texture = F.interpolate(texture, [self.uv_size, self.uv_size])
         texture = texture[:,[2,1,0], :,:]
         return texture

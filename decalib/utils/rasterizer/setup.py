@@ -7,8 +7,8 @@ from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 import os
 
 # USE_NINJA = os.getenv('USE_NINJA') == '1'
-os.environ["CC"] = "gcc-7"
-os.environ["CXX"] = "gcc-7"
+os.environ["CC"] = "gcc"
+os.environ["CXX"] = "gcc"
 
 USE_NINJA = os.getenv('USE_NINJA') == '1'
 

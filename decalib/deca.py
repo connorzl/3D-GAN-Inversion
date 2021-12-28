@@ -61,6 +61,8 @@ class DECA(nn.Module):
         # displacement correction
         fixed_dis = np.load(model_cfg.fixed_displacement_path)
         self.fixed_uv_dis = torch.tensor(fixed_dis).float().to(self.device)
+        self.fixed_uv_dis = F.interpolate(self.fixed_uv_dis[None, None, ...],
+                                          (self.uv_size, self.uv_size)).squeeze()
         # mean texture
         mean_texture = imread(model_cfg.mean_tex_path).astype(np.float32)/255.; mean_texture = torch.from_numpy(mean_texture.transpose(2,0,1))[None,:,:,:].contiguous()
         self.mean_texture = F.interpolate(mean_texture, [model_cfg.uv_size, model_cfg.uv_size]).to(self.device)
@@ -82,7 +84,7 @@ class DECA(nn.Module):
         self.flame = FLAME(model_cfg).to(self.device)
         if model_cfg.use_tex:
             self.flametex = FLAMETex(model_cfg).to(self.device)
-        self.D_detail = Generator(latent_dim=self.n_detail+self.n_cond, out_channels=1, out_scale=model_cfg.max_z, sample_mode = 'bilinear').to(self.device)
+        self.D_detail = Generator(latent_dim=self.n_detail+self.n_cond, out_channels=1, out_scale=model_cfg.max_z, sample_mode = 'bilinear', uv_size=self.cfg.model.uv_size).to(self.device)
         # resume model
         model_path = self.cfg.pretrained_modelpath
         if os.path.exists(model_path):
@@ -174,6 +176,13 @@ class DECA(nn.Module):
         ## projection
         landmarks2d = util.batch_orth_proj(landmarks2d, codedict['cam'])[:,:,:2]; landmarks2d[:,:,1:] = -landmarks2d[:,:,1:]#; landmarks2d = landmarks2d*self.image_size/2 + self.image_size/2
         landmarks3d = util.batch_orth_proj(landmarks3d, codedict['cam']); landmarks3d[:,:,1:] = -landmarks3d[:,:,1:] #; landmarks3d = landmarks3d*self.image_size/2 + self.image_size/2
+
+        # print('DETAIL')
+        # print(dense_vertices.shape, dense_vertices[..., 0].min(), dense_vertices[..., 0].max())
+        # print(dense_vertices.shape, dense_vertices[..., 1].min(), dense_vertices[..., 2].max())
+        # print(dense_vertices.shape, dense_vertices[..., 2].min(), dense_vertices[..., 2].max())
+        # print()
+
         trans_verts = util.batch_orth_proj(verts, codedict['cam']); trans_verts[:,:,1:] = -trans_verts[:,:,1:]
 
         opdict = {
@@ -251,7 +260,7 @@ class DECA(nn.Module):
             
             ## extract texture
             ## TODO: current resolution 256x256, support higher resolution, and add visibility
-            uv_pverts = self.render.world2uv(trans_verts)
+            uv_pverts = self.render.world2uv(trans_verts, debug=True)
             uv_gt = F.grid_sample(images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear')
             if self.cfg.model.use_tex:
                 ## TODO: poisson blending should give better-looking results
@@ -259,7 +268,7 @@ class DECA(nn.Module):
             else:
                 uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (torch.ones_like(uv_gt[:,:3,:,:])*(1-self.uv_face_eye_mask)*0.7)
             opdict['uv_texture_gt'] = uv_texture_gt
-            #save_image(uv_texture_gt[0].cpu(), "/orion/u/connorzl/projects/S-GAN/stylegan3/DECA/TestSamples/examples/results_biden/coarse_uv_texture.png")
+            save_image(uv_texture_gt[0].cpu(), "./coarse_uv_texture.png")
             
             visdict = {
                 'inputs': images, 
@@ -281,7 +290,7 @@ class DECA(nn.Module):
             dense_vertices, dense_colors, dense_faces, dense_uvcoords, dense_uvfaces = util.upsample_mesh(vertices, normals, faces, displacement_map, texture, self.dense_template)
 
             # Normalize UV coordinates.
-            dense_uvcoords = torch.from_numpy(dense_uvcoords).cuda().unsqueeze(0) / 256
+            dense_uvcoords = torch.from_numpy(dense_uvcoords).cuda().unsqueeze(0) / np.max(dense_uvcoords)
             dense_uvcoords = torch.cat([dense_uvcoords, dense_uvcoords[:,:,0:1]*0.+1.], -1) #[bz, ntv, 3]
             dense_uvcoords = dense_uvcoords*2 - 1
             dense_uvfaces = torch.from_numpy(dense_uvfaces).cuda().unsqueeze(0)
@@ -292,13 +301,14 @@ class DECA(nn.Module):
             dense_trans_verts[:,:,1:] = -dense_trans_verts[:,:,1:]
             dense_faces = torch.from_numpy(dense_faces).cuda().unsqueeze(0)
 
-            uv_pverts = self.render.world2uv_dense(dense_trans_verts, dense_faces, dense_uvcoords, dense_uvfaces)
+            uv_pverts = self.render.world2uv_dense(dense_trans_verts, dense_faces, dense_uvcoords, dense_uvfaces, debug=True)
+
             uv_gt = F.grid_sample(images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear')
             if self.cfg.model.use_tex:
                 uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-self.uv_face_eye_mask))
             else:
                 uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (torch.ones_like(uv_gt[:,:3,:,:])*(1-self.uv_face_eye_mask)*0.7)
-            #save_image(uv_texture_gt[0].cpu(), "/orion/u/connorzl/projects/S-GAN/stylegan3/DECA/TestSamples/examples/results_biden/dense_uv_texture.png")
+            save_image(uv_texture_gt[0].cpu(), "./dense_uv_texture.png")
 
             ops = self.render.render_dense(dense_vertices, dense_faces, util.face_vertices(dense_uvcoords, dense_uvfaces), dense_trans_verts, uv_texture_gt, codedict['light'])
             visdict['rendered_images_detailed'] = ops['images']

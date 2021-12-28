@@ -58,6 +58,7 @@ def main(args):
                 orig_visdict['inputs'] = original_image            
         if args.saveDepth or args.saveKpt or args.saveObj or args.saveMat or args.saveImages:
             os.makedirs(os.path.join(savefolder, name), exist_ok=True)
+
         # -- save results
         if args.saveDepth:
             depth_image = deca.render.render_depth(opdict['trans_verts']).repeat(1,3,1,1)
@@ -68,9 +69,14 @@ def main(args):
             np.savetxt(os.path.join(savefolder, name, name + '_kpt3d.txt'), opdict['landmarks3d'][0].cpu().numpy())
         if args.saveObj:
             deca.save_obj(os.path.join(savefolder, name, name + '.obj'), opdict)
+
+        if args.saveAttr:
+            np.save(os.path.join(savefolder, name, name + '_attr.npy'), codedict)
+
         if args.saveMat:
             opdict = util.dict_tensor2npy(opdict)
             savemat(os.path.join(savefolder, name, name + '.mat'), opdict)
+
         if args.saveVis:
             cv2.imwrite(os.path.join(savefolder, name + '_vis.jpg'), deca.visualize(visdict))
             if args.render_orig:
@@ -109,6 +115,8 @@ if __name__ == '__main__':
     parser.add_argument('--useTex', default=False, type=lambda x: x.lower() in ['true', '1'],
                         help='whether to use FLAME texture model to generate uv texture map, \
                             set it to True only if you downloaded texture model' )
+    parser.add_argument('--saveAttr', default=False, type=lambda x: x.lower() in ['true', '1'],
+                        help='whether to save identity, pose, expression attributes')
     parser.add_argument('--saveVis', default=True, type=lambda x: x.lower() in ['true', '1'],
                         help='whether to save visualization of output' )
     parser.add_argument('--saveKpt', default=False, type=lambda x: x.lower() in ['true', '1'],

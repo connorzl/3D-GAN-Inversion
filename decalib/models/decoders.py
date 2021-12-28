@@ -15,11 +15,13 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class Generator(nn.Module):
-    def __init__(self, latent_dim=100, out_channels=1, out_scale=0.01, sample_mode = 'bilinear'):
+    def __init__(self, latent_dim=100, out_channels=1, out_scale=0.01, sample_mode = 'bilinear', uv_size=256):
         super(Generator, self).__init__()
         self.out_scale = out_scale
+        self.uv_size = uv_size
         
         self.init_size = 32 // 4  # Initial size before upsampling
         self.l1 = nn.Sequential(nn.Linear(latent_dim, 128 * self.init_size ** 2))
@@ -53,4 +55,6 @@ class Generator(nn.Module):
         out = self.l1(noise)
         out = out.view(out.shape[0], 128, self.init_size, self.init_size)
         img = self.conv_blocks(out)
-        return img*self.out_scale
+        img = img*self.out_scale
+        img = F.interpolate(img, (self.uv_size, self.uv_size))
+        return img

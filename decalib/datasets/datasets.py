@@ -24,6 +24,7 @@ from skimage.io import imread, imsave
 from skimage.transform import estimate_transform, warp, resize, rescale
 from glob import glob
 import scipy.io
+from ..utils.config import cfg
 
 from . import detectors
 
@@ -129,14 +130,21 @@ class TestData(Dataset):
         else:
             src_pts = np.array([[0, 0], [0, h-1], [w-1, 0]])
         
-        DST_PTS = np.array([[0,0], [0,self.resolution_inp - 1], [self.resolution_inp - 1, 0]])
-        tform = estimate_transform('similarity', src_pts, DST_PTS)
-        
         image = image/255.
 
+        DST_PTS = np.array([[0,0], [0,self.resolution_inp - 1], [self.resolution_inp - 1, 0]])
+        tform = estimate_transform('similarity', src_pts, DST_PTS)
         dst_image = warp(image, tform.inverse, output_shape=(self.resolution_inp, self.resolution_inp))
         dst_image = dst_image.transpose(2,0,1)
+
+        DST_PTS = np.array([[0,0], [0,cfg.model.texture_image_size - 1], [cfg.model.texture_image_size - 1, 0]])
+        tform = estimate_transform('similarity', src_pts, DST_PTS)
+        hr_image = warp(image, tform.inverse, output_shape=(cfg.model.texture_image_size,
+                                                            cfg.model.texture_image_size))
+        hr_image = hr_image.transpose(2,0,1)
+
         return {'image': torch.tensor(dst_image).float(),
+                'hr_image': torch.tensor(hr_image).float(), # used for texture mapping
                 'imagename': imagename,
                 'tform': torch.tensor(tform.params).float(),
                 'original_image': torch.tensor(image.transpose(2,0,1)).float(),

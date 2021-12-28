@@ -38,7 +38,6 @@ def upsample_mesh(vertices, normals, faces, displacement_map, texture_map, dense
         dense_colors: vertex color, [number of dense vertices, 3]
         dense_faces: [number of dense faces, 3]
     '''
-    img_size = dense_template['img_size']
     dense_faces = dense_template['f']
     x_coords = dense_template['x_coords']
     y_coords = dense_template['y_coords']
@@ -66,7 +65,7 @@ def upsample_mesh(vertices, normals, faces, displacement_map, texture_map, dense
     dense_uvfaces_v1 = valid_pixel_ids[dense_faces[:, 1]]
     dense_uvfaces_v2 = valid_pixel_ids[dense_faces[:, 2]]
     dense_uvfaces = np.stack([dense_uvfaces_v0, dense_uvfaces_v1, dense_uvfaces_v2], 1)
-    
+
     return dense_vertices, dense_colors, dense_faces, dense_uv_coords, dense_uvfaces
 
 # borrowed from https://github.com/YadiraF/PRNet/blob/master/utils/write.py
