@@ -173,13 +173,14 @@ class Pytorch3dRasterizer(nn.Module):
         return pixel_vals
 
 class SRenderY(nn.Module):
-    def __init__(self, image_size, obj_filename, uv_size=256, rasterizer_type='pytorch3d'):
+    def __init__(self, image_size, obj_filename, uv_size=256, uv_size_coarse=256, rasterizer_type='pytorch3d'):
         super(SRenderY, self).__init__()
         self.image_size = image_size
         self.uv_size = uv_size
         if rasterizer_type == 'pytorch3d':
             self.rasterizer = Pytorch3dRasterizer(image_size)
             self.uv_rasterizer = Pytorch3dRasterizer(uv_size)
+            self.uv_rasterizer_coarse = Pytorch3dRasterizer(uv_size_coarse)
             verts, faces, aux = load_obj(obj_filename)
             uvcoords = aux.verts_uvs[None, ...]      # (N, V, 2)
             uvfaces = faces.textures_idx[None, ...] # (N, F, 3)
@@ -187,6 +188,7 @@ class SRenderY(nn.Module):
         elif rasterizer_type == 'standard':
             self.rasterizer = StandardRasterizer(image_size)
             self.uv_rasterizer = StandardRasterizer(uv_size)
+            self.uv_rasterizer_coarse = StandardRasterizer(uv_size_coarse)
             verts, uvcoords, faces, uvfaces = load_obj(obj_filename)
             verts = verts[None, ...]
             uvcoords = uvcoords[None, ...]
@@ -196,7 +198,7 @@ class SRenderY(nn.Module):
             NotImplementedError
 
         # faces
-        dense_triangles = util.generate_triangles(uv_size, uv_size)
+        dense_triangles = util.generate_triangles(uv_size_coarse, uv_size_coarse)
         self.register_buffer('dense_faces', torch.from_numpy(dense_triangles).long()[None,:,:])
         self.register_buffer('faces', faces)
         self.register_buffer('raw_uvcoords', uvcoords)
@@ -413,7 +415,8 @@ class SRenderY(nn.Module):
         return shading.mean(1)
 
     def render_shape(self, vertices, transformed_vertices, colors = None, images=None, detail_normal_images=None, 
-                lights=None, return_grid=False, uv_detail_normals=None, h=None, w=None):
+                lights=None, return_grid=False, uv_detail_normals=None, h=None, w=None, detail_faces=None,
+                detail_face_uvcoords=None):
         '''
         -- rendering shape with detail normal map
         '''
@@ -433,21 +436,34 @@ class SRenderY(nn.Module):
             lights = torch.cat((light_positions, light_intensities), 2).to(vertices.device)
         transformed_vertices[:,:,2] = transformed_vertices[:,:,2] + 10
 
-        # Attributes
-        face_vertices = util.face_vertices(vertices, self.faces.expand(batch_size, -1, -1))
-        normals = util.vertex_normals(vertices, self.faces.expand(batch_size, -1, -1)); face_normals = util.face_vertices(normals, self.faces.expand(batch_size, -1, -1))
-        transformed_normals = util.vertex_normals(transformed_vertices, self.faces.expand(batch_size, -1, -1)); transformed_face_normals = util.face_vertices(transformed_normals, self.faces.expand(batch_size, -1, -1))
+        if detail_faces is None:
+            faces = self.faces.expand(batch_size, -1, -1)
+        else:
+            faces = detail_faces.expand(batch_size, -1, -1)
+
         if colors is None:
-            colors = self.face_colors.expand(batch_size, -1, -1, -1)
-        attributes = torch.cat([colors, 
-                        transformed_face_normals.detach(), 
-                        face_vertices.detach(), 
-                        face_normals,
-                        self.face_uvcoords.expand(batch_size, -1, -1, -1)], 
-                        -1)
+            colors = torch.tensor([180, 180, 180], device=faces.device)[None, None, :].repeat(1, faces.max()+1, 1).float()/255.
+            face_colors = util.face_vertices(colors, faces)
+            colors = face_colors.expand(batch_size, -1, -1, -1)
+
+        if detail_face_uvcoords is None:
+            face_uvcoords = self.face_uvcoords.expand(batch_size, -1, -1, -1)
+        else:
+            face_uvcoords = detail_face_uvcoords.expand(batch_size, -1, -1, -1)
+
+        # Attributes
+        face_vertices = util.face_vertices(vertices, faces)
+        normals = util.vertex_normals(vertices, faces); face_normals = util.face_vertices(normals, faces)
+        transformed_normals = util.vertex_normals(transformed_vertices, faces); transformed_face_normals = util.face_vertices(transformed_normals, faces)
+        attributes = torch.cat([colors,
+                                transformed_face_normals.detach(),
+                                face_vertices.detach(),
+                                face_normals,
+                                face_uvcoords],
+                               -1)
         # rasterize
         # import ipdb; ipdb.set_trace()
-        rendering = self.rasterizer(transformed_vertices, self.faces.expand(batch_size, -1, -1), attributes, h, w)
+        rendering = self.rasterizer(transformed_vertices, faces, attributes, h, w)
 
         ####
         alpha_images = rendering[:, -1, :, :][:, None, :, :].detach()
@@ -517,7 +533,7 @@ class SRenderY(nn.Module):
         images = rendering[:, :3, :, :]* alpha_images
         return images
 
-    def world2uv(self, vertices, debug=False):
+    def world2uv(self, vertices, debug=False, coarse=False):
         '''
         warp vertices from world space to uv space
         vertices: [bz, V, 3]
@@ -525,7 +541,12 @@ class SRenderY(nn.Module):
         '''
         batch_size = vertices.shape[0]
         face_vertices = util.face_vertices(vertices, self.faces.expand(batch_size, -1, -1))
-        uv_vertices = self.uv_rasterizer(self.uvcoords.expand(batch_size, -1, -1), self.uvfaces.expand(batch_size, -1, -1), attributes=face_vertices, debug=debug)[:, :3]
+
+        if coarse:
+            uv_vertices = self.uv_rasterizer_coarse(self.uvcoords.expand(batch_size, -1, -1), self.uvfaces.expand(batch_size, -1, -1), attributes=face_vertices, debug=debug)[:, :3]
+        else:
+            uv_vertices = self.uv_rasterizer(self.uvcoords.expand(batch_size, -1, -1), self.uvfaces.expand(batch_size, -1, -1), attributes=face_vertices, debug=debug)[:, :3]
+
         return uv_vertices
 
     def world2uv_dense(self, dense_vertices, dense_faces, dense_uvcoords, dense_uvfaces, debug=False):

@@ -46,23 +46,27 @@ class DECA(nn.Module):
         self.device = device
         self.image_size = self.cfg.model.texture_image_size
         self.uv_size = self.cfg.model.uv_size
+        self.uv_size_coarse = self.cfg.model.uv_size_coarse
 
         self._create_model(self.cfg.model)
         self._setup_renderer(self.cfg.model)
 
     def _setup_renderer(self, model_cfg):
         set_rasterizer(self.cfg.rasterizer_type)
-        self.render = SRenderY(self.image_size, obj_filename=model_cfg.topology_path, uv_size=model_cfg.uv_size, rasterizer_type=self.cfg.rasterizer_type).to(self.device)
+        self.render = SRenderY(self.image_size, obj_filename=model_cfg.topology_path, uv_size=model_cfg.uv_size, uv_size_coarse=model_cfg.uv_size_coarse, rasterizer_type=self.cfg.rasterizer_type).to(self.device)
+
         # face mask for rendering details
         mask = imread(model_cfg.face_eye_mask_path).astype(np.float32)/255.; mask = torch.from_numpy(mask[:,:,0])[None,None,:,:].contiguous()
+        self.uv_face_eye_mask_coarse = F.interpolate(mask, [model_cfg.uv_size_coarse, model_cfg.uv_size_coarse]).to(self.device)
         self.uv_face_eye_mask = F.interpolate(mask, [model_cfg.uv_size, model_cfg.uv_size]).to(self.device)
+
         mask = imread(model_cfg.face_mask_path).astype(np.float32)/255.; mask = torch.from_numpy(mask[:,:,0])[None,None,:,:].contiguous()
         self.uv_face_mask = F.interpolate(mask, [model_cfg.uv_size, model_cfg.uv_size]).to(self.device)
         # displacement correction
         fixed_dis = np.load(model_cfg.fixed_displacement_path)
         self.fixed_uv_dis = torch.tensor(fixed_dis).float().to(self.device)
         self.fixed_uv_dis = F.interpolate(self.fixed_uv_dis[None, None, ...],
-                                          (self.uv_size, self.uv_size)).squeeze()
+                                          (self.uv_size_coarse, self.uv_size_coarse), mode='bilinear').squeeze()
         # mean texture
         mean_texture = imread(model_cfg.mean_tex_path).astype(np.float32)/255.; mean_texture = torch.from_numpy(mean_texture.transpose(2,0,1))[None,:,:,:].contiguous()
         self.mean_texture = F.interpolate(mean_texture, [model_cfg.uv_size, model_cfg.uv_size]).to(self.device)
@@ -84,7 +88,7 @@ class DECA(nn.Module):
         self.flame = FLAME(model_cfg).to(self.device)
         if model_cfg.use_tex:
             self.flametex = FLAMETex(model_cfg).to(self.device)
-        self.D_detail = Generator(latent_dim=self.n_detail+self.n_cond, out_channels=1, out_scale=model_cfg.max_z, sample_mode = 'bilinear', uv_size=self.cfg.model.uv_size).to(self.device)
+        self.D_detail = Generator(latent_dim=self.n_detail+self.n_cond, out_channels=1, out_scale=model_cfg.max_z, sample_mode = 'bilinear', uv_size=self.cfg.model.uv_size_coarse).to(self.device)
         # resume model
         model_path = self.cfg.pretrained_modelpath
         if os.path.exists(model_path):
@@ -120,15 +124,19 @@ class DECA(nn.Module):
         ''' Convert displacement map into detail normal map
         '''
         batch_size = uv_z.shape[0]
-        uv_coarse_vertices = self.render.world2uv(coarse_verts).detach()
-        uv_coarse_normals = self.render.world2uv(coarse_normals).detach()
-    
-        uv_z = uv_z*self.uv_face_eye_mask
+        uv_coarse_vertices = self.render.world2uv(coarse_verts, coarse=True).detach()
+        uv_coarse_normals = self.render.world2uv(coarse_normals, coarse=True).detach()
+
+        uv_z = uv_z*self.uv_face_eye_mask_coarse
         uv_detail_vertices = uv_coarse_vertices + uv_z*uv_coarse_normals + self.fixed_uv_dis[None,None,:,:]*uv_coarse_normals.detach()
+
         dense_vertices = uv_detail_vertices.permute(0,2,3,1).reshape([batch_size, -1, 3])
         uv_detail_normals = util.vertex_normals(dense_vertices, self.render.dense_faces.expand(batch_size, -1, -1))
         uv_detail_normals = uv_detail_normals.reshape([batch_size, uv_coarse_vertices.shape[2], uv_coarse_vertices.shape[3], 3]).permute(0,3,1,2)
-        uv_detail_normals = uv_detail_normals*self.uv_face_eye_mask + uv_coarse_normals*(1-self.uv_face_eye_mask)
+
+        uv_detail_normals = uv_detail_normals*self.uv_face_eye_mask_coarse + uv_coarse_normals*(1-self.uv_face_eye_mask_coarse)
+        uv_detail_normals = F.interpolate(uv_detail_normals, (self.uv_size, self.uv_size))
+
         return uv_detail_normals
 
     def visofp(self, normals):
@@ -192,6 +200,7 @@ class DECA(nn.Module):
             uv_z = self.D_detail(torch.cat([codedict['pose'][:,3:], codedict['exp'], codedict['detail']], dim=1))
             if iddict is not None:
                 uv_z = self.D_detail(torch.cat([iddict['pose'][:,3:], iddict['exp'], codedict['detail']], dim=1))
+
             normals = util.vertex_normals(verts, self.render.faces.expand(batch_size, -1, -1))
             uv_detail_normals = self.displacement2normal(uv_z, verts, normals)
             uv_shading = self.render.add_SHlight(uv_detail_normals, codedict['light'])
@@ -203,7 +212,7 @@ class DECA(nn.Module):
             opdict['displacement_map'] = uv_z+self.fixed_uv_dis[None,None,:,:]
 
             uv_pverts = self.render.world2uv(trans_verts)
-            uv_gt = F.grid_sample(hr_images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear')
+            uv_gt = F.grid_sample(hr_images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear', align_corners=False)
             if self.cfg.model.use_tex:
                 uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-self.uv_face_eye_mask))
             else:
@@ -243,19 +252,9 @@ class DECA(nn.Module):
                 background = None
             ## render shape
             shape_images, _, grid, alpha_images = self.render.render_shape(verts, trans_verts, h=h, w=w, images=background, return_grid=True)
+
             detail_normal_images = F.grid_sample(uv_detail_normals, grid, align_corners=False)*alpha_images
             shape_detail_images = self.render.render_shape(verts, trans_verts, detail_normal_images=detail_normal_images, h=h, w=w, images=background)
-            
-            visdict = {
-                'inputs': images, 
-                'hr_inputs': hr_images,
-                'landmarks2d': util.tensor_vis_landmarks(images, landmarks2d),
-                'landmarks3d': util.tensor_vis_landmarks(images, landmarks3d),
-                'shape_images': shape_images,
-                'shape_detail_images': shape_detail_images
-            }
-            if self.cfg.model.use_tex:
-                visdict['rendered_images'] = ops['images']
 
             # Render the detailed mesh.
             vertices = opdict['verts'][0].cpu().numpy()
@@ -263,6 +262,7 @@ class DECA(nn.Module):
             texture = util.tensor2image(opdict['uv_texture_gt'][0])
             texture = texture[:,:,[2,1,0]]
             normals = opdict['normals'][0].cpu().numpy()
+
             displacement_map = opdict['displacement_map'][0].cpu().numpy().squeeze()
             dense_vertices, dense_colors, dense_faces, dense_uvcoords, dense_uvfaces = util.upsample_mesh(vertices, normals, faces, displacement_map, texture, self.dense_template)
 
@@ -278,9 +278,31 @@ class DECA(nn.Module):
             dense_trans_verts[:,:,1:] = -dense_trans_verts[:,:,1:]
             dense_faces = torch.from_numpy(dense_faces).cuda().unsqueeze(0)
 
+            detail_normal_images = F.grid_sample(uv_detail_normals, grid, align_corners=False)*alpha_images
+            detail_face_uvcoords = util.face_vertices(dense_uvcoords, dense_uvfaces)
+
+            # tried this instead of the above code for shape_detail_images, but doesn't seem to matter
+            # shape_detail_images, _, _, _ = self.render.render_shape(dense_vertices, dense_trans_verts,
+            #                                                         h=h, w=w, images=background, return_grid=True,
+            #                                                         detail_normal_images=detail_normal_images,
+            #                                                         detail_faces=dense_faces,
+            #                                                         detail_face_uvcoords=detail_face_uvcoords)
+
+            visdict = {
+                'inputs': images,
+                'hr_inputs': hr_images,
+                'landmarks2d': util.tensor_vis_landmarks(images, landmarks2d),
+                'landmarks3d': util.tensor_vis_landmarks(images, landmarks3d),
+                'shape_images': shape_images,
+                'shape_detail_images': shape_detail_images
+            }
+            if self.cfg.model.use_tex:
+                visdict['rendered_images'] = ops['images']
+
+
             uv_pverts = self.render.world2uv_dense(dense_trans_verts, dense_faces, dense_uvcoords, dense_uvfaces, debug=True)
 
-            uv_gt = F.grid_sample(hr_images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear')
+            uv_gt = F.grid_sample(hr_images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear', align_corners=False)
             if self.cfg.model.use_tex:
                 uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-self.uv_face_eye_mask))
             else:
@@ -289,6 +311,18 @@ class DECA(nn.Module):
 
             ops = self.render.render_dense(dense_vertices, dense_faces, util.face_vertices(dense_uvcoords, dense_uvfaces), dense_trans_verts, uv_texture_gt, codedict['light'])
             visdict['rendered_images_detailed'] = ops['images']
+
+            # import matplotlib.pyplot as plt
+            # plt.subplot(141)
+            # plt.imshow(uv_detail_normals.squeeze().permute(1, 2, 0).cpu().numpy())
+            # plt.subplot(142)
+            # plt.imshow(detail_normal_images.squeeze().permute(1, 2, 0).cpu().numpy())
+            # plt.subplot(143)
+            # plt.imshow(shape_detail_images.squeeze().cpu().permute(1, 2, 0).numpy())
+            # plt.subplot(144)
+            # plt.imshow(ops['images'].squeeze().cpu().permute(1, 2, 0).numpy())
+            # plt.show()
+
             return opdict, visdict
 
         else:

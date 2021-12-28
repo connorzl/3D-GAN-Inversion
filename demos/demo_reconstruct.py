@@ -89,9 +89,9 @@ def main(args):
                     continue
                 image = util.tensor2image(visdict[vis_name][0])
                 cv2.imwrite(os.path.join(savefolder, name, name + '_' + vis_name +'.jpg'), util.tensor2image(visdict[vis_name][0]))
-                if args.render_orig:
-                    image = util.tensor2image(orig_visdict[vis_name][0])
-                    cv2.imwrite(os.path.join(savefolder, name, 'orig_' + name + '_' + vis_name +'.jpg'), util.tensor2image(orig_visdict[vis_name][0]))
+                # if args.render_orig:
+                #     image = util.tensor2image(orig_visdict[vis_name][0])
+                #     cv2.imwrite(os.path.join(savefolder, name, 'orig_' + name + '_' + vis_name +'.jpg'), util.tensor2image(orig_visdict[vis_name][0]))
     print(f'-- please check the results in {savefolder}')
         
 if __name__ == '__main__':
@@ -111,7 +111,7 @@ if __name__ == '__main__':
     # rendering option
     parser.add_argument('--rasterizer_type', default='standard', type=str,
                         help='rasterizer type: pytorch3d or standard' )
-    parser.add_argument('--render_orig', default=True, type=lambda x: x.lower() in ['true', '1'],
+    parser.add_argument('--render_orig', default=False, type=lambda x: x.lower() in ['true', '1'],
                         help='whether to render results in original image size, currently only works when rasterizer_type=standard')
     # save
     parser.add_argument('--useTex', default=False, type=lambda x: x.lower() in ['true', '1'],
