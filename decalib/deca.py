@@ -22,6 +22,7 @@ import torch.nn as nn
 import numpy as np
 from time import time
 from skimage.io import imread
+from skimage.transform import warp
 import cv2
 import pickle
 from .utils.renderer import SRenderY, set_rasterizer
@@ -220,28 +221,22 @@ class DECA(nn.Module):
                 opdict['attributes'] = face_vertices
 
             uv_gt = F.grid_sample(hr_images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear', align_corners=False)
+
+
             if self.cfg.model.use_tex:
+                # inpaint any missing texture regions
+                uv_gt[uv_gt==0] = uv_texture[uv_gt==0]
+
+                # combined
                 uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-self.uv_face_eye_mask))
             else:
                 uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (torch.ones_like(uv_gt[:,:3,:,:])*(1-self.uv_face_eye_mask)*0.7)
+
             opdict['uv_texture_gt'] = uv_texture_gt
             save_image(uv_texture_gt[0].cpu(), "./coarse_uv_texture.png")
-            # Render the coarse mesh using the texture map.
-            ops = self.render(verts, trans_verts, uv_texture_gt, codedict['light'])
-            
-            ## output
-            opdict['grid'] = ops['grid']
-            opdict['rendered_images'] = ops['images']
-            opdict['alpha_images'] = ops['alpha_images']
-            opdict['normal_images'] = ops['normal_images']
         
         if self.cfg.model.use_tex:
             opdict['albedo'] = albedo
-
-        if vis_lmk:
-            landmarks3d_vis = self.visofp(ops['transformed_normals'])#/self.image_size
-            landmarks3d = torch.cat([landmarks3d, landmarks3d_vis], dim=2)
-            opdict['landmarks3d'] = landmarks3d
 
         if return_vis:
             if render_orig and original_image is not None and tform is not None:
@@ -257,6 +252,21 @@ class DECA(nn.Module):
                 print("no tform available")
                 h, w = self.image_size, self.image_size
                 background = None
+
+            # Render the coarse mesh using the texture map.
+            ops = self.render(verts, trans_verts, uv_texture_gt, codedict['light'], h=h, w=w, bg_images=background, face_mask=self.uv_face_eye_mask)
+            
+            ## output
+            opdict['grid'] = ops['grid']
+            opdict['rendered_images'] = ops['images']
+            opdict['alpha_images'] = ops['alpha_images']
+            opdict['normal_images'] = ops['normal_images']
+
+            if vis_lmk:
+                landmarks3d_vis = self.visofp(ops['transformed_normals'])#/self.image_size
+                landmarks3d = torch.cat([landmarks3d, landmarks3d_vis], dim=2)
+                opdict['landmarks3d'] = landmarks3d
+
             ## render shape
             shape_images, _, grid, alpha_images = self.render.render_shape(verts, trans_verts, h=h, w=w, images=background, return_grid=True)
 

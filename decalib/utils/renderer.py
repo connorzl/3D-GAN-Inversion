@@ -20,6 +20,8 @@ import torch.nn.functional as F
 from skimage.io import imread
 import imageio
 from . import util
+from kornia import morphology as morph
+from kornia import filters
 
 def set_rasterizer(type = 'pytorch3d'):
     if type == 'pytorch3d':
@@ -222,7 +224,7 @@ class SRenderY(nn.Module):
                            (pi/4)*(3)*(np.sqrt(5/(12*pi))), (pi/4)*(3/2)*(np.sqrt(5/(12*pi))), (pi/4)*(1/2)*(np.sqrt(5/(4*pi)))]).float()
         self.register_buffer('constant_factor', constant_factor)
     
-    def forward(self, vertices, transformed_vertices, albedos, lights=None, light_type='point'):
+    def forward(self, vertices, transformed_vertices, albedos, lights=None, light_type='point', h=None, w=None, bg_images=None, face_mask=None):
         '''
         -- Texture Rendering
         vertices: [batch_size, V, 3], vertices in world space, for calculating normals, then shading
@@ -248,16 +250,18 @@ class SRenderY(nn.Module):
                                 face_normals], 
                                 -1)
         # rasterize
-        rendering = self.rasterizer(transformed_vertices, self.faces.expand(batch_size, -1, -1), attributes)
-        
+        rendering = self.rasterizer(transformed_vertices, self.faces.expand(batch_size, -1, -1), attributes, h, w)
+
         ####
         # vis mask
         alpha_images = rendering[:, -1, :, :][:, None, :, :].detach()
 
-        # albedo
+        # albedo and mask
         uvcoords_images = rendering[:, :3, :, :]; 
         grid = (uvcoords_images).permute(0, 2, 3, 1)[:, :, :, :2]
         albedo_images = F.grid_sample(albedos, grid, align_corners=False)
+        face_mask_images = F.grid_sample(face_mask, grid, align_corners=False)
+        face_mask_images *= alpha_images
 
         # visible mask for pixels with positive normal direction
         transformed_normal_map = rendering[:, 3:6, :, :].detach()
@@ -281,8 +285,25 @@ class SRenderY(nn.Module):
             images = albedo_images
             shading_images = images.detach()*0.
 
+        if bg_images is None:
+            images = images*face_mask_images + torch.zeros_like(images, device=images.device)*(1-face_mask_images)
+        else:
+
+            # the texture image also contains the head region, so crop that out
+            face_mask_images[torch.mean(images, dim=1, keepdim=True)==0] = 0
+            images = images*face_mask_images + bg_images*(1-face_mask_images)
+
+            # import matplotlib.pyplot as plt
+            # plt.subplot(131)
+            # plt.imshow(face_mask_images.detach().squeeze().cpu().numpy())
+            # plt.subplot(132)
+            # plt.imshow(bg_images.detach().squeeze().permute(1, 2, 0).cpu().numpy())
+            # plt.subplot(133)
+            # plt.imshow(images.detach().squeeze().permute(1, 2, 0).cpu().numpy())
+            # plt.show()
+
         outputs = {
-            'images': images*alpha_images,
+            'images': images,
             'albedo_images': albedo_images*alpha_images,
             'alpha_images': alpha_images,
             'pos_mask': pos_mask,
