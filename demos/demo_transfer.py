@@ -39,38 +39,42 @@ def main(args):
     deca_cfg.model.use_tex = args.useTex
     deca_cfg.rasterizer_type = args.rasterizer_type
     deca = DECA(config = deca_cfg, device=device)
-    # identity reference
+    # target reference
     i = 0
     name = testdata[i]['imagename']
     savepath = '{}/{}.jpg'.format(savefolder, name)
     images = testdata[i]['image'].to(device)[None,...]
+    hr_images = testdata[i]['hr_image'].to(device)[None,...]
     with torch.no_grad():
         id_codedict = deca.encode(images)
+    id_codedict['hr_images'] = hr_images
     id_opdict, id_visdict = deca.decode(id_codedict)
-    id_visdict = {x:id_visdict[x] for x in ['inputs', 'shape_detail_images']}   
-
-    # -- expression transfer
-    # exp code from image
+    id_codedict['attributes'] = id_opdict['attributes']
+    id_codedict['dense_attributes'] = id_opdict['dense_attributes']
+    
+    # source reference
     exp_images = expdata[i]['image'].to(device)[None,...]
+    exp_images_hr = expdata[i]['hr_image'].to(device)[None,...]
     with torch.no_grad():
         exp_codedict = deca.encode(exp_images)
+    exp_codedict['hr_images'] = exp_images_hr
+    exp_opdict, exp_visdict = deca.decode(exp_codedict)
+
     # transfer exp code
     id_codedict['pose'][:,3:] = exp_codedict['pose'][:,3:]
     id_codedict['exp'] = exp_codedict['exp']
     transfer_opdict, transfer_visdict = deca.decode(id_codedict)
-    id_visdict['transferred_shape'] = transfer_visdict['shape_detail_images']
-    cv2.imwrite(os.path.join(savefolder, name + '_animation.jpg'), deca.visualize(id_visdict))
-
-    transfer_opdict['uv_texture_gt'] = id_opdict['uv_texture_gt']
-    if args.saveDepth or args.saveKpt or args.saveObj or args.saveMat or args.saveImages:
-        os.makedirs(os.path.join(savefolder, name, 'reconstruction'), exist_ok=True)
-        os.makedirs(os.path.join(savefolder, name, 'animation'), exist_ok=True)
     
     # -- save results
+    transfer_opdict['uv_texture_gt'] = id_opdict['uv_texture_gt']
+    if args.saveDepth or args.saveKpt or args.saveObj or args.saveMat or args.saveImages:
+        os.makedirs(os.path.join(savefolder, name, 'original_target'), exist_ok=True)
+        os.makedirs(os.path.join(savefolder, name, 'edited_target'), exist_ok=True)
+
     image_name = name
-    for save_type in ['reconstruction', 'animation']:
+    for save_type in ['original_target', 'edited_target']:
         if save_type == 'reconstruction':
-            visdict = id_codedict; opdict = id_opdict
+            visdict = id_visdict; opdict = id_opdict
         else:
             visdict = transfer_visdict; opdict = transfer_opdict
         if args.saveDepth:
@@ -86,11 +90,14 @@ def main(args):
             opdict = util.dict_tensor2npy(opdict)
             savemat(os.path.join(savefolder, name, save_type, name + '.mat'), opdict)
         if args.saveImages:
-            for vis_name in ['inputs', 'rendered_images', 'albedo_images', 'shape_images', 'shape_detail_images']:
+            for vis_name in ['inputs', 'hr_inputs', 'rendered_images', 'rendered_images_detailed', 'albedo_images', 'shape_images', 'shape_detail_images']:
                 if vis_name not in visdict.keys():
                     continue
-                image  =util.tensor2image(visdict[vis_name][0])
-                cv2.imwrite(os.path.join(savefolder, name, save_type, name + '_' + vis_name +'.jpg'), util.tensor2image(visdict[vis_name][0]))
+                image  = util.tensor2image(visdict[vis_name][0])
+                cv2.imwrite(os.path.join(savefolder, name, save_type, name + '_' + vis_name +'.jpg'), image)
+    cv2.imwrite(os.path.join(savefolder, name + '_original_target.jpg'), deca.visualize(id_visdict))
+    cv2.imwrite(os.path.join(savefolder, name + '_original_source.jpg'), deca.visualize(exp_visdict))
+    cv2.imwrite(os.path.join(savefolder, name + '_edited_target.jpg'), deca.visualize(transfer_visdict))
     print(f'-- please check the results in {savefolder}')
 
 if __name__ == '__main__':

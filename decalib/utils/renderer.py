@@ -115,7 +115,6 @@ class Pytorch3dRasterizer(nn.Module):
     """
 
     def __init__(self, image_size=224):
-        print("IMAGE_SIZE:", image_size)
         """
         use fixed raster_settings for rendering faces
         """
@@ -533,14 +532,17 @@ class SRenderY(nn.Module):
         images = rendering[:, :3, :, :]* alpha_images
         return images
 
-    def world2uv(self, vertices, debug=False, coarse=False):
+    def world2uv(self, vertices, attributes=None, debug=False, coarse=False):
         '''
         warp vertices from world space to uv space
         vertices: [bz, V, 3]
         uv_vertices: [bz, 3, h, w]
         '''
         batch_size = vertices.shape[0]
-        face_vertices = util.face_vertices(vertices, self.faces.expand(batch_size, -1, -1))
+        if attributes == None:
+            face_vertices = util.face_vertices(vertices, self.faces.expand(batch_size, -1, -1))
+        else:
+            face_vertices = attributes
 
         if coarse:
             uv_vertices = self.uv_rasterizer_coarse(self.uvcoords.expand(batch_size, -1, -1), self.uvfaces.expand(batch_size, -1, -1), attributes=face_vertices, debug=debug)[:, :3]
@@ -549,13 +551,16 @@ class SRenderY(nn.Module):
 
         return uv_vertices
 
-    def world2uv_dense(self, dense_vertices, dense_faces, dense_uvcoords, dense_uvfaces, debug=False):
+    def world2uv_dense(self, dense_vertices, dense_faces, dense_uvcoords, dense_uvfaces, attributes=None, debug=False):
         '''
         warp vertices from world space to uv space
         vertices: [bz, V, 3]
         uv_vertices: [bz, 3, h, w]
         '''
         batch_size = dense_vertices.shape[0]
-        dense_face_vertices = util.face_vertices(dense_vertices, dense_faces.expand(batch_size, -1, -1))
+        if attributes == None:
+            dense_face_vertices = util.face_vertices(dense_vertices, dense_faces.expand(batch_size, -1, -1))
+        else:
+            dense_face_vertices = attributes
         uv_vertices = self.uv_rasterizer(dense_uvcoords.expand(batch_size, -1, -1), dense_uvfaces.expand(batch_size, -1, -1), attributes=dense_face_vertices, debug=debug)[:, :3]
         return uv_vertices

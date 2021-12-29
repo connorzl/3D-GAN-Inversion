@@ -211,7 +211,14 @@ class DECA(nn.Module):
             opdict['uv_detail_normals'] = uv_detail_normals
             opdict['displacement_map'] = uv_z+self.fixed_uv_dis[None,None,:,:]
 
-            uv_pverts = self.render.world2uv(trans_verts)
+            if 'attributes' in codedict:
+                uv_pverts = self.render.world2uv(trans_verts, attributes=codedict['attributes'])
+            else:
+                uv_pverts = self.render.world2uv(trans_verts)
+                # store attributes for transfer
+                face_vertices = util.face_vertices(trans_verts, self.render.faces.expand(trans_verts.shape[0], -1, -1))
+                opdict['attributes'] = face_vertices
+
             uv_gt = F.grid_sample(hr_images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear', align_corners=False)
             if self.cfg.model.use_tex:
                 uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-self.uv_face_eye_mask))
@@ -263,7 +270,7 @@ class DECA(nn.Module):
             texture = texture[:,:,[2,1,0]]
             normals = opdict['normals'][0].cpu().numpy()
 
-            displacement_map = opdict['displacement_map'][0].cpu().numpy().squeeze()
+            displacement_map = opdict['displacement_map'][0].cpu().detach().numpy().squeeze()
             dense_vertices, dense_colors, dense_faces, dense_uvcoords, dense_uvfaces = util.upsample_mesh(vertices, normals, faces, displacement_map, texture, self.dense_template)
 
             # Normalize UV coordinates.
@@ -299,8 +306,13 @@ class DECA(nn.Module):
             if self.cfg.model.use_tex:
                 visdict['rendered_images'] = ops['images']
 
-
-            uv_pverts = self.render.world2uv_dense(dense_trans_verts, dense_faces, dense_uvcoords, dense_uvfaces, debug=True)
+            if 'dense_attributes' in codedict:
+                uv_pverts = self.render.world2uv_dense(dense_trans_verts, dense_faces, dense_uvcoords, dense_uvfaces, attributes=codedict['dense_attributes'], debug=True)
+            else:
+                uv_pverts = self.render.world2uv_dense(dense_trans_verts, dense_faces, dense_uvcoords, dense_uvfaces, debug=True)
+                # store attributes for transfer
+                dense_face_vertices = util.face_vertices(dense_trans_verts, dense_faces.expand(dense_vertices.shape[0], -1, -1))
+                opdict['dense_attributes'] = dense_face_vertices
 
             uv_gt = F.grid_sample(hr_images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear', align_corners=False)
             if self.cfg.model.use_tex:
@@ -369,12 +381,12 @@ class DECA(nn.Module):
         # upsample mesh, save detailed mesh
         texture = texture[:,:,[2,1,0]]
         normals = opdict['normals'][i].cpu().numpy()
-        displacement_map = opdict['displacement_map'][i].cpu().numpy().squeeze()
+        displacement_map = opdict['displacement_map'][i].cpu().detach().numpy().squeeze()
         dense_vertices, dense_colors, dense_faces, _, _ = util.upsample_mesh(vertices, normals, faces, displacement_map, texture, self.dense_template)
         util.write_obj(filename.replace('.obj', '_detail.obj'), 
                         dense_vertices, 
                         dense_faces,
-                        colors = dense_colors,
+                        #colors = dense_colors,
                         inverse_face_order=True)
     
     def run(self, imagepath, iscrop=True):
