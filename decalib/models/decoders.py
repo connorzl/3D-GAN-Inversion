@@ -27,23 +27,23 @@ class Generator(nn.Module):
         self.l1 = nn.Sequential(nn.Linear(latent_dim, 128 * self.init_size ** 2))
         self.conv_blocks = nn.Sequential(
             nn.BatchNorm2d(128),
-            nn.Upsample(scale_factor=2, mode=sample_mode), #16
+            nn.Upsample(scale_factor=2, mode=sample_mode, align_corners=False), #16
             nn.Conv2d(128, 128, 3, stride=1, padding=1),
             nn.BatchNorm2d(128, 0.8),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Upsample(scale_factor=2, mode=sample_mode), #32
+            nn.Upsample(scale_factor=2, mode=sample_mode, align_corners=False), #32
             nn.Conv2d(128, 64, 3, stride=1, padding=1),
             nn.BatchNorm2d(64, 0.8),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Upsample(scale_factor=2, mode=sample_mode), #64
+            nn.Upsample(scale_factor=2, mode=sample_mode, align_corners=False), #64
             nn.Conv2d(64, 64, 3, stride=1, padding=1),
             nn.BatchNorm2d(64, 0.8),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Upsample(scale_factor=2, mode=sample_mode), #128
+            nn.Upsample(scale_factor=2, mode=sample_mode, align_corners=False), #128
             nn.Conv2d(64, 32, 3, stride=1, padding=1),
             nn.BatchNorm2d(32, 0.8),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Upsample(scale_factor=2, mode=sample_mode), #256
+            nn.Upsample(scale_factor=2, mode=sample_mode, align_corners=False), #256
             nn.Conv2d(32, 16, 3, stride=1, padding=1),
             nn.BatchNorm2d(16, 0.8),
             nn.LeakyReLU(0.2, inplace=True),
