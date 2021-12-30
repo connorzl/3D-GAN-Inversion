@@ -87,8 +87,8 @@ def main(args):
             for vis_name in ['inputs', 'hr_inputs', 'rendered_images', 'rendered_images_detailed', 'albedo_images', 'shape_images', 'shape_detail_images', 'landmarks2d']:
                 if vis_name not in visdict.keys():
                     continue
-                image = util.tensor2image(visdict[vis_name][0])
-                cv2.imwrite(os.path.join(savefolder, name, name + '_' + vis_name +'.jpg'), util.tensor2image(visdict[vis_name][0]))
+                image = util.tensor2image(orig_visdict[vis_name][0])
+                cv2.imwrite(os.path.join(savefolder, name, name + '_' + vis_name +'.jpg'), util.tensor2image(orig_visdict[vis_name][0]))
                 # if args.render_orig:
                 #     image = util.tensor2image(orig_visdict[vis_name][0])
                 #     cv2.imwrite(os.path.join(savefolder, name, 'orig_' + name + '_' + vis_name +'.jpg'), util.tensor2image(orig_visdict[vis_name][0]))

@@ -221,16 +221,17 @@ class DECA(nn.Module):
                 opdict['attributes'] = face_vertices
 
             uv_gt = F.grid_sample(hr_images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear', align_corners=False)
-            uv_gt_mask = F.grid_sample(torch.ones_like(hr_images), uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear', align_corners=False)
+            uv_gt_mask = F.grid_sample(torch.ones_like(hr_images), uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear', align_corners=False)[:, [0], ...]
 
             if self.cfg.model.use_tex:
                 # inpaint any missing texture regions
-                uv_gt[uv_gt_mask==0] = uv_texture[uv_gt_mask==0]
-
+                # uv_gt[uv_gt_mask==0] = uv_texture[uv_gt_mask==0]
+                uv_face_eye_mask = self.uv_face_eye_mask * uv_gt_mask
                 # combined
-                uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-self.uv_face_eye_mask))
+                uv_texture_gt = uv_gt[:,:3,:,:]*uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-uv_face_eye_mask))
             else:
-                uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (torch.ones_like(uv_gt[:,:3,:,:])*(1-self.uv_face_eye_mask)*0.7)
+                uv_face_eye_mask = self.uv_face_eye_mask * uv_gt_mask
+                uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask
 
             opdict['uv_texture_gt'] = uv_texture_gt
             save_image(uv_texture_gt[0].cpu(), "./coarse_uv_texture.png")
@@ -254,7 +255,7 @@ class DECA(nn.Module):
                 background = None
 
             # Render the coarse mesh using the texture map.
-            ops = self.render(verts, trans_verts, uv_texture_gt, None, h=h, w=w, bg_images=background, face_mask=self.uv_face_eye_mask)
+            ops = self.render(verts, trans_verts, uv_texture_gt, None, h=h, w=w, bg_images=background, face_mask=uv_face_eye_mask)
             
             ## output
             opdict['grid'] = ops['grid']
@@ -329,11 +330,12 @@ class DECA(nn.Module):
 
             if self.cfg.model.use_tex:
                 # inpaint any missing texture regions
-                uv_gt[uv_gt_mask==0] = uv_texture[uv_gt_mask==0]
-
-                uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-self.uv_face_eye_mask))
+                # uv_gt[uv_gt_mask==0] = uv_texture[uv_gt_mask==0]
+                uv_face_eye_mask = self.uv_face_eye_mask * uv_gt_mask
+                uv_texture_gt = uv_gt[:,:3,:,:]*uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-uv_face_eye_mask))
             else:
-                uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask + (torch.ones_like(uv_gt[:,:3,:,:])*(1-self.uv_face_eye_mask)*0.7)
+                uv_face_eye_mask = self.uv_face_eye_mask * uv_gt_mask
+                uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask
             save_image(uv_texture_gt[0].cpu(), "./dense_uv_texture.png")
 
             if render_orig and original_image is not None and tform is not None:
@@ -341,7 +343,7 @@ class DECA(nn.Module):
                 _, _, h, w = original_image.shape
                 dense_trans_verts = transform_points(dense_trans_verts, tform, points_scale, [h, w])
 
-            ops = self.render.render_dense(dense_vertices, dense_faces, util.face_vertices(dense_uvcoords, dense_uvfaces), dense_trans_verts, uv_texture_gt, None, h=h, w=w, bg_images=background, face_mask=self.uv_face_eye_mask)
+            ops = self.render.render_dense(dense_vertices, dense_faces, util.face_vertices(dense_uvcoords, dense_uvfaces), dense_trans_verts, uv_texture_gt, None, h=h, w=w, bg_images=background, face_mask=uv_face_eye_mask)
             visdict['rendered_images_detailed'] = ops['images']
 
             # import matplotlib.pyplot as plt
@@ -352,7 +354,6 @@ class DECA(nn.Module):
             # plt.subplot(143)
             # plt.imshow(shape_detail_images.squeeze().cpu().permute(1, 2, 0).numpy())
             # plt.subplot(144)
-            # plt.imshow(ops['images'].squeeze().cpu().permute(1, 2, 0).numpy())
             # plt.show()
 
             return opdict, visdict
