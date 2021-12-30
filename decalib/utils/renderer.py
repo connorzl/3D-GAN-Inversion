@@ -385,20 +385,7 @@ class SRenderY(nn.Module):
         if bg_images is None:
             images = images*face_mask_images + torch.zeros_like(images, device=images.device)*(1-face_mask_images)
         else:
-
-            # the texture image also contains the head region, so crop that out
-            # face_mask_images[torch.mean(images, dim=1, keepdim=True)==0] = 0
             images = images*face_mask_images + bg_images*(1-face_mask_images)
-
-            # import matplotlib.pyplot as plt
-            # plt.subplot(131)
-            # plt.imshow(face_mask_images.detach().squeeze().cpu().numpy())
-            # plt.subplot(132)
-            # plt.imshow(bg_images.detach().squeeze().permute(1, 2, 0).cpu().numpy())
-            # plt.subplot(133)
-            # plt.imshow(images.detach().squeeze().permute(1, 2, 0).cpu().numpy())
-            # plt.show()
-
 
         outputs = {
             'images': images,
