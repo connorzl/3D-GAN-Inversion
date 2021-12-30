@@ -221,7 +221,7 @@ class DECA(nn.Module):
                 opdict['attributes'] = face_vertices
 
             uv_gt = F.grid_sample(hr_images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear', align_corners=False)
-            uv_gt_mask = F.grid_sample(torch.ones_like(hr_images), uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear', align_corners=False)[:, [0], ...]
+            uv_gt_mask = F.grid_sample(torch.ones_like(hr_images), uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear', align_corners=False)
 
             if self.cfg.model.use_tex:
                 # inpaint any missing texture regions
@@ -307,15 +307,16 @@ class DECA(nn.Module):
             #                                                         detail_face_uvcoords=detail_face_uvcoords)
 
             visdict = {
-                'inputs': images,
                 'hr_inputs': hr_images,
                 'landmarks2d': util.tensor_vis_landmarks(images, landmarks2d),
                 'landmarks3d': util.tensor_vis_landmarks(images, landmarks3d),
                 'shape_images': shape_images,
                 'shape_detail_images': shape_detail_images
             }
-            if self.cfg.model.use_tex:
-                visdict['rendered_images'] = ops['images']
+            # if self.cfg.model.use_tex:
+            visdict['rendered_images'] = ops['images']
+            visdict['mask'] = ops['mask']
+
 
             if 'dense_attributes' in codedict:
                 uv_pverts = self.render.world2uv_dense(dense_trans_verts, dense_faces, dense_uvcoords, dense_uvfaces, attributes=codedict['dense_attributes'], debug=True)
@@ -345,6 +346,8 @@ class DECA(nn.Module):
 
             ops = self.render.render_dense(dense_vertices, dense_faces, util.face_vertices(dense_uvcoords, dense_uvfaces), dense_trans_verts, uv_texture_gt, None, h=h, w=w, bg_images=background, face_mask=uv_face_eye_mask)
             visdict['rendered_images_detailed'] = ops['images']
+            visdict['mask_detailed'] = ops['mask']
+
 
             # import matplotlib.pyplot as plt
             # plt.subplot(141)

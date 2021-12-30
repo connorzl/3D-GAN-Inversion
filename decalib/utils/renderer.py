@@ -306,6 +306,7 @@ class SRenderY(nn.Module):
 
         outputs = {
             'images': images,
+            'mask': (face_mask_images > 0.5).float(),
             'albedo_images': albedo_images*alpha_images,
             'alpha_images': alpha_images,
             'pos_mask': pos_mask,
@@ -388,6 +389,7 @@ class SRenderY(nn.Module):
 
         outputs = {
             'images': images,
+            'mask': (face_mask_images > 0.5).float(),
             'albedo_images': albedo_images*alpha_images,
             'alpha_images': alpha_images,
             'pos_mask': pos_mask,
