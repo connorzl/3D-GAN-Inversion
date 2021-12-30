@@ -292,7 +292,7 @@ class SRenderY(nn.Module):
         else:
 
             # the texture image also contains the head region, so crop that out
-            face_mask_images[torch.mean(images, dim=1, keepdim=True)==0] = 0
+            # face_mask_images[torch.mean(images, dim=1, keepdim=True)==0] = 0
             images = images*face_mask_images + bg_images*(1-face_mask_images)
 
             # import matplotlib.pyplot as plt
@@ -386,7 +386,7 @@ class SRenderY(nn.Module):
         else:
 
             # the texture image also contains the head region, so crop that out
-            face_mask_images[torch.mean(images, dim=1, keepdim=True)==0] = 0
+            # face_mask_images[torch.mean(images, dim=1, keepdim=True)==0] = 0
             images = images*face_mask_images + bg_images*(1-face_mask_images)
 
             # import matplotlib.pyplot as plt
