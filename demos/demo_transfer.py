@@ -65,6 +65,14 @@ def main(args):
     id_codedict['exp'] = exp_codedict['exp']
     transfer_opdict, transfer_visdict = deca.decode(id_codedict)
     
+    tform = testdata[i]['tform'][None, ...]
+    tform = torch.inverse(tform).transpose(1,2).to(device)
+    original_image = testdata[i]['original_image'][None, ...].to(device)
+    _, orig_visdict = deca.decode(id_codedict, render_orig=True, original_image=original_image, tform=tform)
+    orig_visdict['inputs'] = original_image  
+    cv2.imwrite(os.path.join(savefolder, name + '_uncroppped_edited_target.jpg'), deca.visualize(orig_visdict))
+
+
     # -- save results
     transfer_opdict['uv_texture_gt'] = id_opdict['uv_texture_gt']
     if args.saveDepth or args.saveKpt or args.saveObj or args.saveMat or args.saveImages:
