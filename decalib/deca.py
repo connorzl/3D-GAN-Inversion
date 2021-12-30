@@ -310,9 +310,10 @@ class DECA(nn.Module):
                 'inputs': images,
                 'hr_inputs': hr_images,
                 'landmarks2d': util.tensor_vis_landmarks(images, landmarks2d),
-                'landmarks3d': util.tensor_vis_landmarks(images, landmarks3d),
+                #'landmarks3d': util.tensor_vis_landmarks(images, landmarks3d),
                 'shape_images': shape_images,
-                'shape_detail_images': shape_detail_images
+                'shape_detail_images': shape_detail_images,
+                'mask': ops['mask']
             }
             if self.cfg.model.use_tex:
                 visdict['rendered_images'] = ops['images']
@@ -345,6 +346,7 @@ class DECA(nn.Module):
 
             ops = self.render.render_dense(dense_vertices, dense_faces, util.face_vertices(dense_uvcoords, dense_uvfaces), dense_trans_verts, uv_texture_gt, None, h=h, w=w, bg_images=background, face_mask=uv_face_eye_mask)
             visdict['rendered_images_detailed'] = ops['images']
+            visdict['mask_detailed'] = ops['mask']
 
             # import matplotlib.pyplot as plt
             # plt.subplot(141)

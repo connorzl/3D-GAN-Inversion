@@ -310,6 +310,7 @@ class SRenderY(nn.Module):
             'alpha_images': alpha_images,
             'pos_mask': pos_mask,
             'shading_images': shading_images,
+            'mask': face_mask_images,
             'grid': grid,
             'normals': normals,
             'normal_images': normal_images*alpha_images,
@@ -409,6 +410,7 @@ class SRenderY(nn.Module):
             'normals': normals,
             'normal_images': normal_images*alpha_images,
             'transformed_normals': transformed_normals,
+            'mask': face_mask_images
         }
         
         return outputs
