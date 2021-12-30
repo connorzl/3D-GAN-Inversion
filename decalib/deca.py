@@ -231,7 +231,7 @@ class DECA(nn.Module):
                 uv_texture_gt = uv_gt[:,:3,:,:]*uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-uv_face_eye_mask))
             else:
                 uv_face_eye_mask = self.uv_face_eye_mask * uv_gt_mask
-                uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask
+                uv_texture_gt = uv_gt[:,:3,:,:]
 
             opdict['uv_texture_gt'] = uv_texture_gt
             save_image(uv_texture_gt[0].cpu(), "./coarse_uv_texture.png")
@@ -331,11 +331,11 @@ class DECA(nn.Module):
             if self.cfg.model.use_tex:
                 # inpaint any missing texture regions
                 # uv_gt[uv_gt_mask==0] = uv_texture[uv_gt_mask==0]
-                uv_face_eye_mask = self.uv_face_eye_mask * uv_gt_mask
+                uv_face_eye_mask = self.uv_face_eye_mask * uv_gt_mask 
                 uv_texture_gt = uv_gt[:,:3,:,:]*uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-uv_face_eye_mask))
             else:
                 uv_face_eye_mask = self.uv_face_eye_mask * uv_gt_mask
-                uv_texture_gt = uv_gt[:,:3,:,:]*self.uv_face_eye_mask
+                uv_texture_gt = uv_gt[:,:3,:,:]
             save_image(uv_texture_gt[0].cpu(), "./dense_uv_texture.png")
 
             if render_orig and original_image is not None and tform is not None:
