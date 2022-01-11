@@ -168,6 +168,89 @@ class DECA(nn.Module):
             codedict['euler_jaw_pose'] = euler_jaw_pose  
         return codedict
 
+    def decode_coarse(self, codedict, rendering=True, iddict=None, vis_lmk=True, return_vis=True, use_detail=True,
+                render_orig=False, original_image=None, tform=None, pca_index=0, pca_scale=1, all_scale=1, freeze_eyes=None):
+        images = codedict['images']
+        hr_images = codedict['hr_images']
+        batch_size = images.shape[0]
+        
+        ## decode
+        verts, landmarks2d, landmarks3d, freeze_eyes = self.flame(shape_params=codedict['shape'], expression_params=codedict['exp'], pose_params=codedict['pose'], pca_index=pca_index, pca_scale=pca_scale, all_scale=all_scale, freeze_eyes=freeze_eyes)
+        if self.cfg.model.use_tex:
+            albedo = self.flametex(codedict['tex'])
+        else:
+            albedo = torch.zeros([batch_size, 3, self.uv_size, self.uv_size], device=images.device) 
+        landmarks3d_world = landmarks3d.clone()
+
+        ## projection
+        trans_verts = util.batch_orth_proj(verts, codedict['cam']); trans_verts[:,:,1:] = -trans_verts[:,:,1:]
+
+        opdict = {
+            'verts': verts,
+            'trans_verts': trans_verts,
+            'freeze_eyes': freeze_eyes,
+        }
+
+        ## rendering
+        if rendering:
+            uv_z = self.D_detail(torch.cat([codedict['pose'][:,3:], codedict['exp'], codedict['detail']], dim=1))
+            if iddict is not None:
+                uv_z = self.D_detail(torch.cat([iddict['pose'][:,3:], iddict['exp'], codedict['detail']], dim=1))
+
+            normals = util.vertex_normals(verts, self.render.faces.expand(batch_size, -1, -1))
+            uv_detail_normals = self.displacement2normal(uv_z, verts, normals)
+            uv_shading = self.render.add_SHlight(uv_detail_normals, codedict['light'])
+            uv_texture = albedo*uv_shading
+
+            opdict['uv_texture'] = uv_texture 
+            opdict['normals'] = normals
+            opdict['uv_detail_normals'] = uv_detail_normals
+            opdict['displacement_map'] = uv_z+self.fixed_uv_dis[None,None,:,:]
+
+            if 'attributes' in codedict:
+                uv_pverts = self.render.world2uv(trans_verts, attributes=codedict['attributes'])
+            else:
+                uv_pverts = self.render.world2uv(trans_verts)
+                # store attributes for transfer
+                face_vertices = util.face_vertices(trans_verts, self.render.faces.expand(trans_verts.shape[0], -1, -1))
+                opdict['attributes'] = face_vertices
+
+            uv_gt = F.grid_sample(hr_images, uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear', align_corners=False)
+            uv_gt_mask = F.grid_sample(torch.ones_like(hr_images), uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear', align_corners=False)[:, [0], ...]
+
+            if self.cfg.model.use_tex:
+                # inpaint any missing texture regions
+                # uv_gt[uv_gt_mask==0] = uv_texture[uv_gt_mask==0]
+                uv_face_eye_mask = self.uv_face_eye_mask * uv_gt_mask
+                # combined
+                uv_texture_gt = uv_gt[:,:3,:,:]*uv_face_eye_mask + (uv_texture[:,:3,:,:]*(1-uv_face_eye_mask))
+            else:
+                uv_face_eye_mask = self.uv_face_eye_mask * uv_gt_mask
+                uv_texture_gt = uv_gt[:,:3,:,:]
+            opdict['uv_texture_gt'] = uv_texture_gt
+
+        if return_vis:
+            if render_orig and original_image is not None and tform is not None:
+                points_scale = [self.image_size, self.image_size]
+                _, _, h, w = original_image.shape
+                trans_verts = transform_points(trans_verts, tform, points_scale, [h, w])
+                background = original_image
+                images = original_image
+            else:
+                print("no tform available")
+                h, w = self.image_size, self.image_size
+                background = None
+
+            # Render the coarse mesh using the texture map.
+            ops = self.render(verts, trans_verts, uv_texture_gt, None, h=h, w=w, bg_images=background, face_mask=uv_face_eye_mask)
+            opdict['trans_verts'] = trans_verts
+            visdict = {
+                'inputs': images,
+                'mask': ops['mask'].repeat(1, 3, 1, 1),
+                'rendered_images': ops['images']
+            }
+            return opdict, visdict
+
     # @torch.no_grad()
     def decode(self, codedict, rendering=True, iddict=None, vis_lmk=True, return_vis=True, use_detail=True,
                 render_orig=False, original_image=None, tform=None):
@@ -313,7 +396,7 @@ class DECA(nn.Module):
                 #'landmarks3d': util.tensor_vis_landmarks(images, landmarks3d),
                 'shape_images': shape_images,
                 'shape_detail_images': shape_detail_images,
-                'mask': ops['mask']
+                'mask': ops['mask'].repeat(1, 3, 1, 1)
             }
             if self.cfg.model.use_tex:
                 visdict['rendered_images'] = ops['images']
@@ -400,7 +483,7 @@ class DECA(nn.Module):
                         uvcoords=uvcoords, 
                         uvfaces=uvfaces, 
                         normal_map=normal_map)
-
+        """
         # upsample mesh, save detailed mesh
         texture = texture[:,:,[2,1,0]]
         normals = opdict['normals'][i].cpu().numpy()
@@ -411,7 +494,7 @@ class DECA(nn.Module):
                         dense_faces,
                         #colors = dense_colors,
                         inverse_face_order=True)
-    
+        """
     def run(self, imagepath, iscrop=True):
         ''' An api for running deca given an image path
         '''

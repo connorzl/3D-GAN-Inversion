@@ -72,6 +72,18 @@ def main(args):
     orig_visdict['inputs'] = original_image  
     cv2.imwrite(os.path.join(savefolder, name + '_uncroppped_edited_target.jpg'), deca.visualize(orig_visdict))
 
+    image  = util.tensor2image(orig_visdict["rendered_images_detailed"][0])
+    cv2.imwrite(os.path.join(savefolder, name + '_' + "rendered_images_detailed" +'.jpg'), image)
+
+    image  = util.tensor2image(orig_visdict["mask_detailed"][0])
+    cv2.imwrite(os.path.join(savefolder, name + '_' + "mask_detailed" +'.jpg'), image)
+
+    image  = util.tensor2image(orig_visdict["rendered_images"][0])
+    cv2.imwrite(os.path.join(savefolder, name + '_' + "rendered_images" +'.jpg'), image)
+
+    image  = util.tensor2image(orig_visdict["mask"][0])
+    cv2.imwrite(os.path.join(savefolder, name + '_' + "mask" +'.jpg'), image)
+
 
     # -- save results
     transfer_opdict['uv_texture_gt'] = id_opdict['uv_texture_gt']
@@ -106,6 +118,7 @@ def main(args):
     cv2.imwrite(os.path.join(savefolder, name + '_original_target.jpg'), deca.visualize(id_visdict))
     cv2.imwrite(os.path.join(savefolder, name + '_original_source.jpg'), deca.visualize(exp_visdict))
     cv2.imwrite(os.path.join(savefolder, name + '_edited_target.jpg'), deca.visualize(transfer_visdict))
+    cv2.imwrite(os.path.join(savefolder, name + '_original_edited_target.jpg'), deca.visualize(orig_visdict))
     print(f'-- please check the results in {savefolder}')
 
 if __name__ == '__main__':

@@ -138,7 +138,7 @@ def vertices2landmarks(vertices, faces, lmk_faces_idx, lmk_bary_coords):
 
 
 def lbs(betas, pose, v_template, shapedirs, posedirs, J_regressor, parents,
-        lbs_weights, pose2rot=True, dtype=torch.float32):
+        lbs_weights, pose2rot=True, dtype=torch.float32, all_scale=1, freeze_eyes=None):
     ''' Performs Linear Blend Skinning with the given shape and pose parameters
 
         Parameters
@@ -181,7 +181,12 @@ def lbs(betas, pose, v_template, shapedirs, posedirs, J_regressor, parents,
     device = betas.device
 
     # Add shape contribution
+    b = v_template[0, :, 1] >= 0.038
+    indices = b.nonzero()[:, 0]
+    shapedirs[indices, :, 100:] *= all_scale
+
     v_shaped = v_template + blend_shapes(betas, shapedirs)
+    #np.save("/orion/u/connorzl/projects/DECA/TestSamples/v_template.npy", v_template[0].cpu().detach().numpy())
 
     # Get the joints
     # NxJx3 array
@@ -224,7 +229,16 @@ def lbs(betas, pose, v_template, shapedirs, posedirs, J_regressor, parents,
 
     verts = v_homo[:, :, :3, 0]
 
-    return verts, J_transformed
+    valid_mask = (v_template[0, :, 1] <= 0.034) & (v_template[0, :, 1] >= 0.011) & \
+    ( ((v_template[0, :, 0] >= -0.052) & (v_template[0, :, 0] <= -0.014)) |  ((v_template[0, :, 0] >= 0.014) & (v_template[0, :, 0] < 0.053)))
+    eye_indices = valid_mask.nonzero()[:, 0]
+    #np.save("/orion/u/connorzl/projects/DECA/TestSamples/eye_template.npy", v_template[0, eye_indices].cpu().detach().numpy())
+
+    if freeze_eyes == None:
+        freeze_eyes = verts[0, eye_indices]
+    else:
+        verts[0, eye_indices] = freeze_eyes
+    return verts, J_transformed, freeze_eyes
 
 
 def vertices2joints(J_regressor, vertices):
@@ -267,6 +281,7 @@ def blend_shapes(betas, shape_disps):
     # Displacement[b, m, k] = sum_{l} betas[b, l] * shape_disps[m, k, l]
     # i.e. Multiply each shape displacement by its corresponding beta and
     # then sum them.
+    # (1 x 150) * (5023 x 3 x 150) -> (1 x 5023 x 3)
     blend_shape = torch.einsum('bl,mkl->bmk', [betas, shape_disps])
     return blend_shape
 
