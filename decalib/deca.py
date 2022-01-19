@@ -259,7 +259,7 @@ class DECA(nn.Module):
         batch_size = images.shape[0]
         
         ## decode
-        verts, landmarks2d, landmarks3d = self.flame(shape_params=codedict['shape'], expression_params=codedict['exp'], pose_params=codedict['pose'])
+        verts, landmarks2d, landmarks3d, _ = self.flame(shape_params=codedict['shape'], expression_params=codedict['exp'], pose_params=codedict['pose'])
         if self.cfg.model.use_tex:
             albedo = self.flametex(codedict['tex'])
         else:
@@ -431,10 +431,6 @@ class DECA(nn.Module):
             ops = self.render.render_dense(dense_vertices, dense_faces, util.face_vertices(dense_uvcoords, dense_uvfaces), dense_trans_verts, uv_texture_gt, None, h=h, w=w, bg_images=background, face_mask=uv_face_eye_mask)
             visdict['rendered_images_detailed'] = ops['images']
             visdict['mask_detailed'] = ops['mask']
-<<<<<<< HEAD
-=======
-
->>>>>>> 2119c62788a27cae642ebd01357f825cb9377ad9
 
             # import matplotlib.pyplot as plt
             # plt.subplot(141)

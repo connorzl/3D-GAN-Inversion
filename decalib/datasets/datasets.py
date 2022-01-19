@@ -106,12 +106,12 @@ class TestData(Dataset):
             # provide kpt as txt file, or mat file (for AFLW2000)
             kpt_matpath = os.path.splitext(imagepath)[0]+'.mat'
             kpt_txtpath = os.path.splitext(imagepath)[0]+'.txt'
-            if os.path.exists(kpt_matpath):
+            if False:  # os.path.exists(kpt_matpath):
                 kpt = scipy.io.loadmat(kpt_matpath)['pt3d_68'].T        
                 left = np.min(kpt[:,0]); right = np.max(kpt[:,0]); 
                 top = np.min(kpt[:,1]); bottom = np.max(kpt[:,1])
                 old_size, center = self.bbox2point(left, right, top, bottom, type='kpt68')
-            elif os.path.exists(kpt_txtpath):
+            elif False:  # os.path.exists(kpt_txtpath):
                 kpt = np.loadtxt(kpt_txtpath)
                 left = np.min(kpt[:,0]); right = np.max(kpt[:,0]); 
                 top = np.min(kpt[:,1]); bottom = np.max(kpt[:,1])

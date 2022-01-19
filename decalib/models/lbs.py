@@ -137,6 +137,38 @@ def vertices2landmarks(vertices, faces, lmk_faces_idx, lmk_bary_coords):
     return landmarks
 
 
+def project_betas(betas, pose, v_template, shapedirs, posedirs, J_regressor, parents,
+                  lbs_weights, pose2rot=True, dtype=torch.float32, all_scale=1, freeze_eyes=None):
+
+    valid_mask = (v_template[0, :, 1] <= 0.034) & (v_template[0, :, 1] >= 0.011) & \
+        (((v_template[0, :, 0] >= -0.052) & (v_template[0, :, 0] <= -0.014)) | ((v_template[0, :, 0] >= 0.014) & (v_template[0, :, 0] < 0.053)))
+
+
+    blend_shape = torch.einsum('bl,mkl->bmk', [betas, shapedirs])
+    blend_shape[:, valid_mask, :] = 0
+
+    shapedirs = shapedirs.reshape(5023*3, 150)
+    blend_shape = blend_shape.reshape(5023*3, 1)
+    betas = betas.reshape(150, 1)
+
+    new_betas = torch.linalg.lstsq(blend_shape, shapedirs)
+    new_betas = new_betas.solution
+
+    # test_blend_shape = shapedirs @ new_betas.reshape(150, 1)
+
+    # test_blend_shape = test_blend_shape.reshape(5023, 3).cpu().numpy()
+    # np.savetxt('test1.xyz', v_template.cpu().numpy()[0] + test_blend_shape)
+    # np.savetxt('test2.xyz', v_template.cpu().numpy()[0] + blend_shape.reshape(5023, 3).cpu().numpy())
+
+    # print(blend_shape - test_blend_shape)
+    # print(blend_shape)
+
+    # print(betas - new_betas)
+
+    return new_betas
+
+
+
 def lbs(betas, pose, v_template, shapedirs, posedirs, J_regressor, parents,
         lbs_weights, pose2rot=True, dtype=torch.float32, all_scale=1, freeze_eyes=None):
     ''' Performs Linear Blend Skinning with the given shape and pose parameters

@@ -52,7 +52,6 @@ def main(args):
     id_opdict, id_visdict = deca.decode_coarse(id_codedict, pca_scale=1, all_scale=1)
     id_codedict['attributes'] = id_opdict['attributes']
 
-
     all_poses = []
     all_exps = []
 
@@ -66,17 +65,19 @@ def main(args):
     all_poses = torch.stack(all_poses, 0)
     all_exps = torch.stack(all_exps, 0)
 
-    smooth_poses = []
-    smooth_exps = []
-    windowsize = 4
-    for i in range(0, len(expdata)):
-        start = max(0, i-windowsize)
-        poses = torch.mean(all_poses[start:start+5], 0)
-        exps = torch.mean(all_exps[start:start+5], 0)
-        smooth_poses.append(poses)
-        smooth_exps.append(exps)
-    smooth_poses = torch.stack(smooth_poses, 0)
-    smooth_exps = torch.stack(smooth_exps, 0)
+    # smooth_poses = []
+    # smooth_exps = []
+    # windowsize = 4
+    # for i in range(0, len(expdata)):
+    #     start = max(0, i-windowsize)
+    #     poses = torch.mean(all_poses[start:start+5], 0)
+    #     exps = torch.mean(all_exps[start:start+5], 0)
+    #     smooth_poses.append(poses)
+    #     smooth_exps.append(exps)
+    # smooth_poses = torch.stack(smooth_poses, 0)
+    # smooth_exps = torch.stack(smooth_exps, 0)
+    smooth_poses = all_poses
+    smooth_exps = all_exps
 
     for i in range(0, len(expdata)):
         name = testdata[0]['imagename'] + "_" + str(i).zfill(3)
@@ -90,7 +91,9 @@ def main(args):
             tform = testdata[0]['tform'][None, ...]
             tform = torch.inverse(tform).transpose(1,2).to(device)
             original_image = testdata[0]['original_image'][None, ...].to(device)
-            orig_opdict, orig_visdict = deca.decode_coarse(id_codedict, render_orig=True, original_image=original_image, tform=tform, pca_index=9, pca_scale=2, all_scale=3, freeze_eyes=id_opdict['freeze_eyes'])
+            # orig_opdict, orig_visdict = deca.decode_coarse(id_codedict, render_orig=True, original_image=original_image, tform=tform, pca_index=9, pca_scale=2, all_scale=3, freeze_eyes=id_opdict['freeze_eyes'])
+            orig_opdict, orig_visdict = deca.decode_coarse(id_codedict, render_orig=True, original_image=original_image, tform=tform, pca_index=9, pca_scale=1, all_scale=1, freeze_eyes=id_opdict['freeze_eyes'])
+
             orig_visdict['inputs'] = original_image  
 
         depth_image = deca.render.render_depth(orig_opdict['trans_verts']).repeat(1,3,1,1)

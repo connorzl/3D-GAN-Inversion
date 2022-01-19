@@ -19,7 +19,7 @@ import numpy as np
 import pickle
 import torch.nn.functional as F
 
-from .lbs import lbs, batch_rodrigues, vertices2landmarks, rot_mat_to_euler
+from .lbs import lbs, batch_rodrigues, vertices2landmarks, rot_mat_to_euler, project_betas
 
 def to_tensor(array, dtype=torch.float32):
     if 'torch.tensor' not in str(type(array)):
@@ -171,6 +171,34 @@ class FLAME(nn.Module):
                                        self.full_lmk_faces_idx.repeat(vertices.shape[0], 1),
                                        self.full_lmk_bary_coords.repeat(vertices.shape[0], 1, 1))
         return landmarks3d
+
+    def project_expr(self, shape_params=None, expression_params=None, pose_params=None, eye_pose_params=None, pca_index=0, pca_scale=1, all_scale=1, freeze_eyes=None):
+        batch_size = shape_params.shape[0]
+        if pose_params is None:
+            pose_params = self.eye_pose.expand(batch_size, -1)
+        if eye_pose_params is None:
+            eye_pose_params = self.eye_pose.expand(batch_size, -1)
+        betas = torch.cat([shape_params, expression_params], dim=1)
+        full_pose = torch.cat([pose_params[:, :3], self.neck_pose.expand(batch_size, -1), pose_params[:, 3:], eye_pose_params], dim=1)
+        template_vertices = self.v_template.unsqueeze(0).expand(batch_size, -1, -1)
+
+        # 5023 x 3 x 150
+        shapedirs = self.shapedirs.clone()
+        b = template_vertices[0, :, 1] >= 0.038
+        indices = b.nonzero()[:, 0]
+        shapedirs[indices, :, 100+pca_index] *= pca_scale
+
+        new_beta = project_betas(betas, full_pose, template_vertices,
+                                 shapedirs, self.posedirs,
+                                 self.J_regressor, self.parents,
+                                 self.lbs_weights, dtype=self.dtype,
+                                 all_scale=all_scale, freeze_eyes=freeze_eyes)
+
+        # just get expression?
+        new_beta = new_beta[:, shape_params.shape[1]:]
+
+        return new_beta
+
 
     def forward(self, shape_params=None, expression_params=None, pose_params=None, eye_pose_params=None, pca_index=0, pca_scale=1, all_scale=1, freeze_eyes=None):
         """
