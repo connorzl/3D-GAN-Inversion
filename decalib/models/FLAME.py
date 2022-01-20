@@ -178,6 +178,7 @@ class FLAME(nn.Module):
             pose_params = self.eye_pose.expand(batch_size, -1)
         if eye_pose_params is None:
             eye_pose_params = self.eye_pose.expand(batch_size, -1)
+
         betas = torch.cat([shape_params, expression_params], dim=1)
         full_pose = torch.cat([pose_params[:, :3], self.neck_pose.expand(batch_size, -1), pose_params[:, 3:], eye_pose_params], dim=1)
         template_vertices = self.v_template.unsqueeze(0).expand(batch_size, -1, -1)
@@ -188,17 +189,13 @@ class FLAME(nn.Module):
         indices = b.nonzero()[:, 0]
         shapedirs[indices, :, 100+pca_index] *= pca_scale
 
-        new_beta = project_betas(betas, full_pose, template_vertices,
-                                 shapedirs, self.posedirs,
-                                 self.J_regressor, self.parents,
-                                 self.lbs_weights, dtype=self.dtype,
-                                 all_scale=all_scale, freeze_eyes=freeze_eyes)
+        new_beta, freeze_eyes = project_betas(betas, full_pose, template_vertices,
+                                              shapedirs, self.posedirs,
+                                              self.J_regressor, self.parents,
+                                              self.lbs_weights, dtype=self.dtype,
+                                              all_scale=all_scale, freeze_eyes=freeze_eyes)
 
-        # just get expression?
-        new_beta = new_beta[:, shape_params.shape[1]:]
-
-        return new_beta
-
+        return new_beta, freeze_eyes
 
     def forward(self, shape_params=None, expression_params=None, pose_params=None, eye_pose_params=None, pca_index=0, pca_scale=1, all_scale=1, freeze_eyes=None):
         """

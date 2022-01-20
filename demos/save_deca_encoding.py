@@ -49,6 +49,7 @@ def main(args):
         testdata = datasets.TestData(folder, iscrop=args.iscrop, face_detector=args.detector)
 
         # target reference
+        freeze_eyes = None
         for idx, sample in enumerate(testdata):
             images = sample['image'].to(device)[None, ...]
             with torch.no_grad():
@@ -58,12 +59,15 @@ def main(args):
                 out = np.concatenate((code['exp'].cpu().numpy(), code['pose'].cpu().numpy()), axis=1)
                 np.savetxt(os.path.join(folder, 'detections', f'frames{idx:03d}_deca.txt'), out)
 
-                new_expr = deca.flame.project_expr(shape_params=code['shape'],
-                                                   expression_params=code['exp'],
-                                                   pose_params=code['pose'],
-                                                   pca_index=0, pca_scale=1,
-                                                   all_scale=1,
-                                                   freeze_eyes=None)
+                # freeze vertices to be the same as the first frame,
+                # then only solve for the updated expression vectors
+                # rather than allowing the shape to change
+                new_expr, freeze_eyes = deca.flame.project_expr(shape_params=code['shape'],
+                                                                expression_params=code['exp'],
+                                                                pose_params=code['pose'],
+                                                                pca_index=0, pca_scale=1,
+                                                                all_scale=1,
+                                                                freeze_eyes=freeze_eyes)
 
                 out[:, :50] = new_expr.cpu().numpy()
                 np.savetxt(os.path.join(folder, 'detections', f'frames{idx:03d}_deca_noeyes.txt'), out)

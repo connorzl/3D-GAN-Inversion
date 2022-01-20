@@ -143,15 +143,27 @@ def project_betas(betas, pose, v_template, shapedirs, posedirs, J_regressor, par
     valid_mask = (v_template[0, :, 1] <= 0.034) & (v_template[0, :, 1] >= 0.011) & \
         (((v_template[0, :, 0] >= -0.052) & (v_template[0, :, 0] <= -0.014)) | ((v_template[0, :, 0] >= 0.014) & (v_template[0, :, 0] < 0.053)))
 
-
     blend_shape = torch.einsum('bl,mkl->bmk', [betas, shapedirs])
-    blend_shape[:, valid_mask, :] = 0
 
+    if freeze_eyes is not None:
+        blend_shape[:, valid_mask, :] = freeze_eyes
+    else:
+        freeze_eyes = blend_shape[:, valid_mask, :]
+
+    # reshape to 2d and vectors
     shapedirs = shapedirs.reshape(5023*3, 150)
     blend_shape = blend_shape.reshape(5023*3, 1)
     betas = betas.reshape(150, 1)
 
-    new_betas = torch.linalg.lstsq(blend_shape, shapedirs)
+    # shape is 0:100, expression is 100:150
+    # we want to only modify the expression
+    shapedirs_shape = shapedirs[:, :100]
+    shapedirs_exp = shapedirs[:, 100:]
+    b = blend_shape - shapedirs_shape @ betas[:100]
+    A = shapedirs_exp
+
+    new_betas = torch.linalg.lstsq(b, A)
+    # new_betas = torch.linalg.lstsq(blend_shape, shapedirs)
     new_betas = new_betas.solution
 
     # test_blend_shape = shapedirs @ new_betas.reshape(150, 1)
@@ -165,7 +177,7 @@ def project_betas(betas, pose, v_template, shapedirs, posedirs, J_regressor, par
 
     # print(betas - new_betas)
 
-    return new_betas
+    return new_betas, freeze_eyes
 
 
 
