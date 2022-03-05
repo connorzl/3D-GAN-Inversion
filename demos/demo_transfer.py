@@ -133,7 +133,7 @@ if __name__ == '__main__':
     parser.add_argument('--device', default='cuda', type=str,
                         help='set device, cpu for using cpu' )
     # rendering option
-    parser.add_argument('--rasterizer_type', default='standard', type=str,
+    parser.add_argument('--rasterizer_type', default='pytorch3d', type=str,
                         help='rasterizer type: pytorch3d or standard' )
     # process test images
     parser.add_argument('--iscrop', default=True, type=lambda x: x.lower() in ['true', '1'],

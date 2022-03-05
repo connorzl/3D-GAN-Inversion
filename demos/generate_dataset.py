@@ -65,19 +65,21 @@ def main(args):
     all_poses = torch.stack(all_poses, 0)
     all_exps = torch.stack(all_exps, 0)
 
-    # smooth_poses = []
-    # smooth_exps = []
-    # windowsize = 4
-    # for i in range(0, len(expdata)):
-    #     start = max(0, i-windowsize)
-    #     poses = torch.mean(all_poses[start:start+5], 0)
-    #     exps = torch.mean(all_exps[start:start+5], 0)
-    #     smooth_poses.append(poses)
-    #     smooth_exps.append(exps)
-    # smooth_poses = torch.stack(smooth_poses, 0)
-    # smooth_exps = torch.stack(smooth_exps, 0)
-    smooth_poses = all_poses
-    smooth_exps = all_exps
+    if args.useSmoothing:
+        smooth_poses = []
+        smooth_exps = []
+        windowsize = 4
+        for i in range(0, len(expdata)):
+            start = max(0, i-windowsize)
+            poses = torch.mean(all_poses[start:start+5], 0)
+            exps = torch.mean(all_exps[start:start+5], 0)
+            smooth_poses.append(poses)
+            smooth_exps.append(exps)
+        smooth_poses = torch.stack(smooth_poses, 0)
+        smooth_exps = torch.stack(smooth_exps, 0)
+    else:
+        smooth_poses = all_poses
+        smooth_exps = all_exps
 
     for i in range(0, len(expdata)):
         name = testdata[0]['imagename'] + "_" + str(i).zfill(3)
@@ -91,8 +93,11 @@ def main(args):
             tform = testdata[0]['tform'][None, ...]
             tform = torch.inverse(tform).transpose(1,2).to(device)
             original_image = testdata[0]['original_image'][None, ...].to(device)
-            # orig_opdict, orig_visdict = deca.decode_coarse(id_codedict, render_orig=True, original_image=original_image, tform=tform, pca_index=9, pca_scale=2, all_scale=3, freeze_eyes=id_opdict['freeze_eyes'])
-            orig_opdict, orig_visdict = deca.decode_coarse(id_codedict, render_orig=True, original_image=original_image, tform=tform, pca_index=9, pca_scale=1, all_scale=1, freeze_eyes=id_opdict['freeze_eyes'])
+            
+            if args.scale_expressions:
+                orig_opdict, orig_visdict = deca.decode_coarse(id_codedict, render_orig=True, original_image=original_image, tform=tform, pca_index=9, pca_scale=1, all_scale=2, freeze_eyes=id_opdict['freeze_eyes'])
+            else:
+                orig_opdict, orig_visdict = deca.decode_coarse(id_codedict, render_orig=True, original_image=original_image, tform=tform, pca_index=9, pca_scale=1, all_scale=1, freeze_eyes=id_opdict['freeze_eyes'])
 
             orig_visdict['inputs'] = original_image  
 
@@ -165,4 +170,11 @@ if __name__ == '__main__':
     parser.add_argument('--useTex', default=True, type=lambda x: x.lower() in ['true', '1'],
                         help='whether to use FLAME texture model to generate uv texture map, \
                             set it to True only if you downloaded texture model' )
+
+    parser.add_argument('--useSmoothing', action='store_true',
+                        help='whether to smooth')
+
+    parser.add_argument('--scale_expressions', action='store_true',
+                        help='whether to scale expressions up')
+
     main(parser.parse_args())
