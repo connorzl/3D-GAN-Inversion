@@ -1,10 +1,5 @@
 # DECA: Detailed Expression Capture and Animation (SIGGRAPH2021)
 
-<p align="center"> 
-<img src="TestSamples/teaser/results/teaser.gif">
-</p>
-<p align="center">input image, aligned reconstruction, animation with various poses & expressions<p align="center">
-
 This is a modified repository of the official Pytorch implementation of DECA, used by [3D GAN Inversion for Controllable Portrait Image Animation](https://arxiv.org/abs/2203.13441). 
 
 DECA reconstructs a 3D head model with detailed facial geometry from a single input image. The resulting 3D head model can be easily animated. Please refer to the [arXiv paper](https://arxiv.org/abs/2012.04012) for more details.
