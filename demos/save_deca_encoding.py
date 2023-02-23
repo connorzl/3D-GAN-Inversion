@@ -32,7 +32,9 @@ from decalib.utils import util
 def main(args):
     device = args.device
 
-    folders = sorted(glob(os.path.join(args.dataset_dir, '*')))
+    start = 375
+    end = 500
+    folders = sorted(glob(os.path.join(args.dataset_dir, '*')))[start:end]
 
     # run DECA
     deca_cfg.model.use_tex = args.useTex
@@ -45,8 +47,13 @@ def main(args):
         if args.subfolder is not None:
             folder = os.path.join(folder, args.subfolder)
 
-        print(folder)
+        print("FOLDER:", folder)
         testdata = datasets.TestData(folder, iscrop=args.iscrop, face_detector=args.detector)
+        
+        if len(glob(os.path.join(folder, 'detections', '*deca*'))) == 100:
+            i += 1
+            print("complete:", i)
+            continue
 
         # target reference
         freeze_eyes = None
@@ -58,7 +65,7 @@ def main(args):
                 os.makedirs(os.path.join(folder, 'detections'), exist_ok=True)
                 out = np.concatenate((code['exp'].cpu().numpy(), code['pose'].cpu().numpy()), axis=1)
                 np.savetxt(os.path.join(folder, 'detections', f'frames{idx:03d}_deca.txt'), out)
-
+                """
                 # freeze vertices to be the same as the first frame,
                 # then only solve for the updated expression vectors
                 # rather than allowing the shape to change
@@ -71,7 +78,7 @@ def main(args):
 
                 out[:, :50] = new_expr.cpu().numpy()
                 np.savetxt(os.path.join(folder, 'detections', f'frames{idx:03d}_deca_noeyes.txt'), out)
-
+                """
                 # hr_images = sample['hr_image'].to(device)[None, ...]
                 # print(hr_images.shape)
                 # code['hr_images'] = hr_images

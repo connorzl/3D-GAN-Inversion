@@ -32,7 +32,7 @@ def main(args):
     device = args.device
     os.makedirs(savefolder, exist_ok=True)
 
-    # load test images 
+    # load test images
     testdata = datasets.TestData(args.image_path, iscrop=args.iscrop, face_detector=args.detector)
     expdata = datasets.TestData(args.exp_path, iscrop=args.iscrop, face_detector=args.detector)
 
@@ -114,36 +114,6 @@ def main(args):
         masked_img = copy.deepcopy(rendered_image)
         masked_img[mask[:, :, 0] < 100] = 0
         cv2.imwrite(os.path.join(savefolder, name + '_' + "masked_rendered_images" +'.jpg'), masked_img)
-        """
-        for j in range(0, 50):
-            print("PROCESSING PCA INDEX:", j)
-            with torch.no_grad():
-                tform = testdata[0]['tform'][None, ...]
-                tform = torch.inverse(tform).transpose(1,2).to(device)
-                original_image = testdata[0]['original_image'][None, ...].to(device)
-                orig_opdict, orig_visdict = deca.decode_coarse(id_codedict, render_orig=True, original_image=original_image, tform=tform, pca_index=j)
-                orig_visdict['inputs'] = original_image  
-
-            name = testdata[0]['imagename'] + "_" + str(i).zfill(3) + "_" + str(j).zfill(2)
-
-            depth_image = deca.render.render_depth(orig_opdict['trans_verts']).repeat(1,3,1,1)
-            orig_visdict['depth_images'] = depth_image
-            cv2.imwrite(os.path.join(savefolder, name + '_depth.jpg'), util.tensor2image(depth_image[0]))
-
-            rendered_image  = util.tensor2image(orig_visdict["rendered_images"][0])
-            cv2.imwrite(os.path.join(savefolder, name + '_' + "rendered_images" +'.jpg'), rendered_image)
-
-            mask  = util.tensor2image(orig_visdict["mask"][0])
-            cv2.imwrite(os.path.join(savefolder, name + '_' + "mask" +'.jpg'), mask)
-
-            masked_img = copy.deepcopy(rendered_image)
-            masked_img[mask[:, :, 0] < 100] = 0
-            cv2.imwrite(os.path.join(savefolder, name + '_' + "masked_rendered_images" +'.jpg'), masked_img)
-
-        #masked_img = torch.permute(torch.from_numpy(np.expand_dims(masked_img, 0)), (0, 3, 1, 2)) / 255
-        #orig_visdict['masked_rendered_images'] = masked_img[0]
-        #cv2.imwrite(os.path.join(savefolder, name + '_edited_target.jpg'), deca.visualize(orig_visdict))
-        """
         
     print(f'-- please check the results in {savefolder}')
 
