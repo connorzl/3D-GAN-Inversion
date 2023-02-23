@@ -32,7 +32,7 @@ Clone the repo:
     ```
     python demos/generate_dataset.py -i source_images  -e target_images -s output --device cuda:0 
     ```   
-    to visualize the predicted 2D landmanks, 3D landmarks (red means non-visible points), coarse geometry, detailed geometry, and depth (see output folder in this repository).   
+    to visualize the predicted depth, face mask, face mask rendered source image with target expression, and fully rendered source image with target expression (see output folder in this repository for example outputs).   
  
 ## Citation
 If you find this work useful to your research, please consider citing:
