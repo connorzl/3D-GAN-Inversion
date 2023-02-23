@@ -59,66 +59,9 @@ Clone the repo:
 
     Please run `python demos/demo_reconstruct.py --help` for more details. 
 
-    b. **expression transfer**   
-    ```bash
-    python demos/demo_transfer.py
-    ```   
-    Given an image, you can reconstruct its 3D face, then animate it by tranfering expressions from other images. 
-    Using Meshlab to open the detailed mesh obj file, you can see something like that:
-    <p align="center"> 
-    <img src="Doc/images/soubhik.gif">
-    </p>  
-    (Thank Soubhik for allowing me to use his face ^_^)   
-    
-    Note that, you need to set '--useTex True' to get full texture.   
-
-    c. for the [teaser gif](https://github.com/YadiraF/DECA/results/teaser.gif) (**reposing** and **animation**)
-    ```bash
-    python demos/demo_teaser.py 
-    ``` 
-    
-    More demos and training code coming soon.
-
-## Evaluation
-DECA (ours) achieves 9% lower mean shape reconstruction error on the [NoW Challenge](https://ringnet.is.tue.mpg.de/challenge) dataset compared to the previous state-of-the-art method.  
-The left figure compares the cumulative error of our approach and other recent methods (RingNet and Deng et al. have nearly identitical performance, so their curves overlap each other). Here we use point-to-surface distance as the error metric, following the NoW Challenge.  
-<p align="left"> 
-<img src="Doc/images/DECA_evaluation_github.png">
-</p>
-
-For more details of the evaluation, please check our [arXiv paper](https://arxiv.org/abs/2012.04012). 
-
-## Training
-1. Prepare Training Data
-
-    a. Download image data  
-    In DECA, we use [VGGFace2](https://arxiv.org/pdf/1710.08092.pdf), [BUPT-Balancedface](http://www.whdeng.cn/RFW/Trainingdataste.html) and [VoxCeleb2](https://www.robots.ox.ac.uk/~vgg/data/voxceleb/vox2.html)  
-
-    b. Prepare label  
-    [FAN](https://github.com/1adrianb/2D-and-3D-face-alignment) to predict 68 2D landmark  
-    [face_segmentation](https://github.com/YuvalNirkin/face_segmentation) to get skin mask  
-
-    c. Modify dataloader   
-    Dataloaders for different datasets are in decalib/datasets, use the right path for prepared images and labels. 
-
-2. Download face recognition trained model  
-    We use the model from [VGGFace2-pytorch](https://github.com/cydonia999/VGGFace2-pytorch) for calculating identity loss,
-    download [resnet50_ft](https://drive.google.com/file/d/1A94PAAnwk6L7hXdBXLFosB_s0SzEhAFU/view),
-    and put it into ./data  
-
-3. Start training
-
-    Train from scratch: 
-    ```bash
-    python main_train.py --cfg configs/release_version/deca_pretrain.yml 
-    python main_train.py --cfg configs/release_version/deca_coarse.yml 
-    python main_train.py --cfg configs/release_version/deca_detail.yml 
-    ```
-    In the yml files, write the right path for 'output_dir' and 'pretrained_modelpath'.  
-    You can also use [released model](https://drive.google.com/file/d/1rp8kdyLPvErw2dTmqtjISRVvQLj6Yzje/view) as pretrained model, then ignor the pretrain step.
-
+ 
 ## Citation
-If you find our work useful to your research, please consider citing:
+If you find this work useful to your research, please consider citing:
 ```
 @inproceedings{DECA:Siggraph2021,
   title={Learning an Animatable Detailed {3D} Face Model from In-The-Wild Images},
@@ -130,10 +73,6 @@ If you find our work useful to your research, please consider citing:
   url = {https://doi.org/10.1145/3450626.3459936} 
 }
 ```
-
-<!-- ## Notes
-1. Training code will also be released in the future. -->
-
 ## License
 This code and model are available for non-commercial scientific research purposes as defined in the [LICENSE](https://github.com/YadiraF/DECA/blob/master/LICENSE) file.
 By downloading and using the code and model you agree to the terms in the [LICENSE](https://github.com/YadiraF/DECA/blob/master/LICENSE). 
