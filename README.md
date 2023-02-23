@@ -5,7 +5,7 @@
 </p>
 <p align="center">input image, aligned reconstruction, animation with various poses & expressions<p align="center">
 
-This is the official Pytorch implementation of DECA. 
+This is a modified repository of the official Pytorch implementation of DECA, used by [3D GAN Inversion for Controllable Portrait Image Animation](https://arxiv.org/abs/2203.13441). 
 
 DECA reconstructs a 3D head model with detailed facial geometry from a single input image. The resulting 3D head model can be easily animated. Please refer to the [arXiv paper](https://arxiv.org/abs/2012.04012) for more details.
 
@@ -19,7 +19,7 @@ The main features:
 ## Getting Started
 Clone the repo:
   ```bash
-  git clone https://github.com/YadiraF/DECA
+  git clone https://github.com/connorzl/DECA
   cd DECA
   ```  
 
@@ -27,15 +27,14 @@ Clone the repo:
 * Python 3.7 (numpy, skimage, scipy, opencv)  
 * PyTorch >= 1.6 (pytorch3d)  
 * face-alignment (Optional for detecting face)  
-  You can run 
-  ```bash
-  pip install -r requirements.txt
   ```
-  Or use virtual environment by runing 
-  ```bash
-  bash install_conda.sh
+  conda env create --file=environment.yml
   ```
-  For visualization, we use our rasterizer that uses pytorch JIT Compiling Extensions. If there occurs a compiling error, you can install [pytorch3d](https://github.com/facebookresearch/pytorch3d/blob/master/INSTALL.md) instead and set --rasterizer_type=pytorch3d when running the demos.
+* pytorch3d
+  ```
+  git clone https://github.com/facebookresearch/pytorch3d.git
+  cd pytorch3d && pip install -e . 
+  ```
 
 ### Usage
 1. Prepare data   
@@ -43,22 +42,11 @@ Clone the repo:
     b. download [DECA trained model](https://drive.google.com/file/d/1rp8kdyLPvErw2dTmqtjISRVvQLj6Yzje/view?usp=sharing), and put it in ./data (**no unzip required**)  
     c. (Optional) follow the instructions for the [Albedo model](https://github.com/TimoBolkart/BFM_to_FLAME) to get 'FLAME_albedo_from_BFM.npz', put it into ./data
 
-2. Run demos  
-    a. **reconstruction**  
-    ```bash
-    python demos/demo_reconstruct.py -i TestSamples/examples --saveDepth True --saveObj True
+2. Preprocess data for 3D GAN Inversion:
+    ```
+    python demos/generate_dataset.py -i source_images  -e target_images -s output --device cuda:0 
     ```   
-    to visualize the predicted 2D landmanks, 3D landmarks (red means non-visible points), coarse geometry, detailed geometry, and depth.   
-    <p align="center">   
-    <img src="Doc/images/id04657-PPHljWCZ53c-000565_inputs_inputs_vis.jpg">
-    </p>  
-    <p align="center">   
-    <img src="Doc/images/IMG_0392_inputs_vis.jpg">
-    </p>  
-    You can also generate an obj file (which can be opened with Meshlab) that includes extracted texture from the input image.  
-
-    Please run `python demos/demo_reconstruct.py --help` for more details. 
-
+    to visualize the predicted 2D landmanks, 3D landmarks (red means non-visible points), coarse geometry, detailed geometry, and depth (see output folder in this repository).   
  
 ## Citation
 If you find this work useful to your research, please consider citing:
