@@ -24,9 +24,7 @@ Clone the repo:
   ```  
 
 ### Requirements
-* Python 3.7 (numpy, skimage, scipy, opencv)  
-* PyTorch >= 1.6 (pytorch3d)  
-* face-alignment (Optional for detecting face)  
+* DECA environment  
   ```
   conda env create --file=environment.yml
   ```
