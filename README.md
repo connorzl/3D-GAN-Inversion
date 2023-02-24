@@ -46,27 +46,13 @@ If you find this work useful to your research, please consider citing:
   year = {2021}, 
   url = {https://doi.org/10.1145/3450626.3459936} 
 }
+@article{lin20223d,
+  title={3d gan inversion for controllable portrait image animation},
+  author={Lin, Connor Z and Lindell, David B and Chan, Eric R and Wetzstein, Gordon},
+  journal={arXiv preprint arXiv:2203.13441},
+  year={2022}
+}
 ```
 ## License
 This code and model are available for non-commercial scientific research purposes as defined in the [LICENSE](https://github.com/YadiraF/DECA/blob/master/LICENSE) file.
 By downloading and using the code and model you agree to the terms in the [LICENSE](https://github.com/YadiraF/DECA/blob/master/LICENSE). 
-
-## Acknowledgements
-For functions or scripts that are based on external sources, we acknowledge the origin individually in each file.  
-Here are some great resources we benefit:  
-- [FLAME_PyTorch](https://github.com/soubhiksanyal/FLAME_PyTorch) and [TF_FLAME](https://github.com/TimoBolkart/TF_FLAME) for the FLAME model  
-- [Pytorch3D](https://pytorch3d.org/), [neural_renderer](https://github.com/daniilidis-group/neural_renderer), [SoftRas](https://github.com/ShichenLiu/SoftRas) for rendering  
-- [kornia](https://github.com/kornia/kornia) for image/rotation processing  
-- [face-alignment](https://github.com/1adrianb/face-alignment) for cropping   
-- [FAN](https://github.com/1adrianb/2D-and-3D-face-alignment) for landmark detection
-- [face_segmentation](https://github.com/YuvalNirkin/face_segmentation) for skin mask
-- [VGGFace2-pytorch](https://github.com/cydonia999/VGGFace2-pytorch) for identity loss  
-
-We would also like to thank other recent public 3D face reconstruction works that allow us to easily perform quantitative and qualitative comparisons :)  
-[RingNet](https://github.com/soubhiksanyal/RingNet), 
-[Deep3DFaceReconstruction](https://github.com/microsoft/Deep3DFaceReconstruction/blob/master/renderer/rasterize_triangles.py), 
-[Nonlinear_Face_3DMM](https://github.com/tranluan/Nonlinear_Face_3DMM),
-[3DDFA-v2](https://github.com/cleardusk/3DDFA_V2),
-[extreme_3d_faces](https://github.com/anhttran/extreme_3d_faces),
-[facescape](https://github.com/zhuhao-nju/facescape)
-<!-- 3DMMasSTN, DenseReg, 3dmm_cnn, vrn, pix2vertex -->
