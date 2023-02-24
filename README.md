@@ -1,4 +1,4 @@
-# DECA: Detailed Expression Capture and Animation (SIGGRAPH2021)
+# Modified Implementation of DECA: Detailed Expression Capture and Animation (SIGGRAPH2021) used by 3D GAN Inversion for Controllable Portrait Image Animation
 
 This is a modified repository of the [official Pytorch implementation of DECA](https://github.com/yfeng95/DECA), used by [3D GAN Inversion for Controllable Portrait Image Animation](https://arxiv.org/abs/2203.13441). 
 
