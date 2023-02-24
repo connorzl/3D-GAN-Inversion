@@ -46,6 +46,7 @@ If you find this work useful to your research, please consider citing:
   year = {2021}, 
   url = {https://doi.org/10.1145/3450626.3459936} 
 }
+
 @article{lin20223d,
   title={3d gan inversion for controllable portrait image animation},
   author={Lin, Connor Z and Lindell, David B and Chan, Eric R and Wetzstein, Gordon},
