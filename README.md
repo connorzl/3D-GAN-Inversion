@@ -1,6 +1,6 @@
 # 3D GAN Inversion for Controllable Portrait Image Animation
 
-This is a modified repository of [DECA: Detailed Expression Capture and Animation](https://github.com/yfeng95/DECA) and [PTI: Pivotal Tuning for Latent-based editing of Real Images](https://github.com/danielroich/PTI), used by [3D GAN Inversion for Controllable Portrait Image Animation](https://arxiv.org/abs/2203.13441). 
+This is the official Pytorch implementation of [3D GAN Inversion for Controllable Portrait Image Animation](https://arxiv.org/abs/2203.13441), which uses modified implementations of [DECA: Detailed Expression Capture and Animation](https://github.com/yfeng95/DECA) and [PTI: Pivotal Tuning for Latent-based editing of Real Images](https://github.com/danielroich/PTI).
 
 ## Getting Started
 Clone the repo:
