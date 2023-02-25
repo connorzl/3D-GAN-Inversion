@@ -9,6 +9,7 @@ import os
 cfg = CN()
 
 abs_deca_dir = os.path.abspath(os.path.dirname(__file__))
+abs_deca_dir = os.path.join(abs_deca_dir, ("../../../preprocess_inversion_data/data"))
 cfg.deca_dir = abs_deca_dir
 cfg.device = 'cuda'
 cfg.device_id = '0'

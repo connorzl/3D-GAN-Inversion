@@ -1,5 +1,5 @@
 ## Device
-cuda_visible_devices = '8'
+cuda_visible_devices = '9'
 device = 'cuda:0'
 
 ## Logs

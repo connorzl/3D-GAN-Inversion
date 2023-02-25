@@ -240,20 +240,29 @@ class LatentIDCoach(BaseCoach):
             w_opt = []
             w_next = None
             for idx, sample in enumerate(tqdm(self.dataloader)):
-
                 face_mask = sample['face_mask'].to(global_config.device)
                 face_img = sample['face_img'].to(global_config.device)
 
-                #face_bg_mask = sample['face_bg_mask'].to(global_config.device)
-                #face_bg_img = sample['face_bg_img'].to(global_config.device)
                 # optimize for w
                 self.restart_training()
 
                 if idx == 0:
+                    """
+                    tmp = (face_img[0].permute(1, 2, 0).detach().cpu().numpy() + 1) / 2
+                    tmp = Image.fromarray((255 * tmp).astype(np.uint8))
+                    tmp.save("tmp.png")
+
+                    tmp = face_mask[0].permute(1, 2, 0).detach().cpu().numpy()
+                    tmp = Image.fromarray((255 * tmp[:, :, 0]).astype(np.uint8))
+                    tmp.save("tmp_mask.png")
+                    assert(False)
+                    """
+                    print("calculating inversions:", self.image_name, self.logdir)
                     w_pivot, noise_bufs, all_w_opt = self.calc_inversions(face_img, self.image_name, self.logdir,
                                                                           mask=face_mask, initial_w=None,
                                                                           writer=None, write_video=True,
                                                                           num_steps=hyperparameters.first_inv_steps)
+                    print("done calculating inversions")
                 else:
                     w_pivot, noise_bufs, all_w_opt = self.calc_inversions(face_img, self.image_name, self.logdir,
                                                                           mask=face_mask, initial_w=w_next,
@@ -286,127 +295,3 @@ class LatentIDCoach(BaseCoach):
         # step 2: finetune the generator on all the w_opt 
         # load the optimized 'w' and generated 'w' images to the dataset
         self.tune_generator()
-
-
-    # deprecated
-    def train_expression(self):
-        np.random.seed(1989)
-        torch.manual_seed(1989)
-
-        # sample some w to manipulate
-        w = self.sample_w()
-        w_orig = w.clone().detach()
-
-        with torch.no_grad():
-            orig_image = (self.generate_image(w) + 1) * 255/2
-            orig_image = orig_image.permute(0, 2, 3, 1).clamp(0, 255).to(torch.uint8)[0].cpu().numpy()
-
-        
-        # hardcode target expression for now
-        for frame in range(1, 300, 10):
-            print(f'FRAME: {frame}')
-            target_npy = f'/home/lindell/workspace/DECA/biden/{frame:03d}/{frame:03d}_attr.npy'
-            target_png = f'/home/lindell/workspace/DECA/biden/{frame:03d}/{frame:03d}_inputs.jpg'
-            target_exp, target_img = self.load_attributes(target_npy, target_png)
-
-            # set up output directories
-            embedding_dir = f'./embeddings/latent'
-            os.makedirs(embedding_dir, exist_ok=True)
-            vid_path = f'{embedding_dir}' + '/' + 'rgb_proj.mp4'
-            rgb_video = imageio.get_writer(vid_path, mode='I', fps=10, codec='libx264', bitrate='16M')
-
-            # initialize generator
-            self.restart_training()
-
-            w = w_orig.clone().detach()
-            w.requires_grad = True
-            self.optimizer = torch.optim.Adam([w], lr=hyperparameters.first_inv_lr)
-            # self.optimizer = torch.optim.Adam(list(self.G.parameters()) + [w], lr=hyperparameters.pti_learning_rate)
-
-
-
-            for i in tqdm(range(hyperparameters.first_inv_steps)):
-
-                # get image
-                generated_images = self.generate_image(w)
-
-                # import matplotlib
-                # import matplotlib.pyplot as plt
-                # matplotlib.use('TkAgg')
-                # plt.imshow(generated_images.cpu().detach().squeeze().permute(1, 2, 0))
-                # plt.show()
-                # break
-
-                # get expression
-                exp, ident, light = self.get_attributes(generated_images)
-
-                if i == 0:
-                    orig_ident = ident.clone().detach()
-                    orig_light = light.clone().detach()
-
-                # TODO: need identity preserving expression loss
-                loss = self.expr_loss(exp, target_exp, ident, orig_ident, light, orig_light)
-
-                self.optimizer.zero_grad()
-                loss.backward()
-
-                self.optimizer.step()
-
-                tqdm.write(f'loss: {loss:.02f}')
-
-                if i % 5 == 0:
-                    synth_image = generated_images
-                    synth_image = (synth_image + 1) * (255/2)
-                    synth_image = synth_image.permute(0, 2, 3, 1).clamp(0, 255).to(torch.uint8)[0].cpu().numpy()
-                    rgb_video.append_data(np.concatenate([orig_image, synth_image, target_img], axis=1))
-
-                if i == hyperparameters.max_pti_steps - 1:
-                    synth_image = generated_images
-                    synth_image = (synth_image + 1) * (255/2)
-                    synth_image = synth_image.permute(0, 2, 3, 1).clamp(0, 255).to(torch.uint8)[0].cpu().numpy()
-                    skimage.io.imsave(f'{embedding_dir}' + '/' + f'w_{frame:03d}.png', np.concatenate([orig_image, synth_image, target_img], axis=1))
-
-                global_config.training_step += 1
-
-            ### PTI
-            self.optimizer = torch.optim.Adam(list(self.G.parameters()), lr=hyperparameters.pti_learning_rate)
-            for i in tqdm(range(hyperparameters.max_pti_steps)):
-
-                # get image
-                generated_images = self.generate_image(w)
-
-                # import matplotlib
-                # import matplotlib.pyplot as plt
-                # matplotlib.use('TkAgg')
-                # plt.imshow(generated_images.cpu().detach().squeeze().permute(1, 2, 0))
-                # plt.show()
-                # break
-
-                # get expression
-                exp, ident, light = self.get_attributes(generated_images)
-
-                if i == 0:
-                    orig_ident = ident.clone().detach()
-                    orig_light = light.clone().detach()
-
-                # TODO: need identity preserving expression loss
-                loss = self.expr_loss(exp, target_exp, ident, orig_ident, light, orig_light)
-
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
-
-                tqdm.write(f'loss: {loss:.02f}')
-
-                if i == hyperparameters.max_pti_steps - 1:
-                    synth_image = generated_images
-                    synth_image = (synth_image + 1) * (255/2)
-                    synth_image = synth_image.permute(0, 2, 3, 1).clamp(0, 255).to(torch.uint8)[0].cpu().numpy()
-                    skimage.io.imsave(f'{embedding_dir}' + '/' + f'pti_{frame:03d}.png', np.concatenate([orig_image, synth_image, target_img], axis=1))
-
-                global_config.training_step += 1
-
-
-            rgb_video.close()
-
-            torch.save(self.G, f'{embedding_dir}/model.pt')

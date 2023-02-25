@@ -10,10 +10,7 @@ import os
 from configs import global_config, paths_config, hyperparameters
 import shutil
 
-from pti_training.coaches.single_id_coach import SingleIDCoach
 from pti_training.coaches.latent_id_coach import LatentIDCoach
-from pti_training.coaches.latent_id_coach_2d import LatentIDCoach2D
-from pti_training.coaches.single_id_coach_grayscale import SingleIDCoachGrayscale
 from utils.ImagesDataset import ImagesDataset, GrayscaleImagesDataset, DECADataset
 from utils.parse_args import parse_args
 

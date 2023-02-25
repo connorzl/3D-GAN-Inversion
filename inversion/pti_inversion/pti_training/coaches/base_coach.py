@@ -6,12 +6,12 @@ from criteria.localitly_regulizer import Space_Regulizer
 import torch
 from torchvision import transforms
 from lpips import LPIPS
-from pti_training.projectors import w_projector, w_projector_grayscale
+from pti_training.projectors import w_projector
 from configs import global_config, paths_config, hyperparameters
 from criteria import l2_loss
 from models.e4e.psp import pSp
 from utils.log_utils import log_image_from_w
-from utils.models_utils import toogle_grad, load_stylegan2d, load_3dgan
+from utils.models_utils import toogle_grad, load_3dgan
 import numpy as np
 import json
 
@@ -48,17 +48,10 @@ class BaseCoach:
         os.makedirs(self.checkpoint_dir, exist_ok=True)
 
     def restart_training(self):
-
         # Initialize networks
-        if global_config.run_stylegan2d:
-            print("LOADING 2D GAN")
-            self.G = load_stylegan2d()
-            toogle_grad(self.G, True)
-            self.original_G = load_stylegan2d()
-        else:
-            self.G = load_3dgan()
-            toogle_grad(self.G, True)
-            self.original_G = load_3dgan()
+        self.G = load_3dgan()
+        toogle_grad(self.G, True)
+        self.original_G = load_3dgan()
 
         self.space_regulizer = Space_Regulizer(self.original_G, self.lpips_loss)
         self.optimizer = self.configure_optimizers()
@@ -97,31 +90,12 @@ class BaseCoach:
     def calc_inversions(self, image, image_name, embedding_dir, grayscale=False, mask=None,
                         initial_w=None, writer=None, num_steps=hyperparameters.first_inv_steps,
                         write_video=False):
-
-        if hyperparameters.first_inv_type == 'w+':
-            w = self.get_e4e_inversion(image)
-
-        else:
-            id_image = torch.squeeze((image.to(global_config.device) + 1) / 2) * 255
-            if grayscale:
-                id_image = id_image.unsqueeze(0)
-                w = w_projector_grayscale.project(self.G, id_image, embedding_dir, device=torch.device(global_config.device), w_avg_samples=600,
-                        num_steps=hyperparameters.first_inv_steps, w_name=image_name,
-                        use_wandb=self.use_wandb)
-            else:
-                if global_config.run_stylegan2d:
-                    w = w_projector.project2d(self.G, id_image, embedding_dir,
-                                        device=torch.device(global_config.device), w_avg_samples=600,
-                                        num_steps=num_steps,
-                                        use_wandb=self.use_wandb, mask=mask, initial_w=initial_w,
-                                        writer=writer, write_video=False)
-                else:
-                    w = w_projector.project(self.G, id_image, embedding_dir,
-                                            device=torch.device(global_config.device), w_avg_samples=600,
-                                            num_steps=num_steps, w_name=image_name,
-                                            use_wandb=self.use_wandb, mask=mask, initial_w=initial_w,
-                                            writer=writer, write_video=False)
-
+        id_image = torch.squeeze((image.to(global_config.device) + 1) / 2) * 255
+        w = w_projector.project(self.G, id_image, embedding_dir,
+                                device=torch.device(global_config.device), w_avg_samples=600,
+                                num_steps=num_steps, w_name=image_name,
+                                use_wandb=self.use_wandb, mask=mask, initial_w=initial_w,
+                                writer=writer, write_video=False)
         return w
 
     @abc.abstractmethod
