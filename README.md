@@ -25,8 +25,11 @@ Clone the repo:
 ### Usage
 1. Prepare data   
     a. download [FLAME model](https://flame.is.tue.mpg.de/download.php), choose **FLAME 2020** and unzip it, copy 'generic_model.pkl' into ./preprocess_inversion_data/data  
-    b. download [DECA trained model](https://drive.google.com/file/d/1rp8kdyLPvErw2dTmqtjISRVvQLj6Yzje/view?usp=sharing), and put it in ./preprocess_inversion_data/data (**no unzip required**)  
+    
+    b. download [DECA trained model](https://drive.google.com/file/d/1rp8kdyLPvErw2dTmqtjISRVvQLj6Yzje/view?usp=sharing), and put it in ./preprocess_inversion_data/data (**no unzip required**) 
+    
     c. (Optional) follow the instructions for the [Albedo model](https://github.com/TimoBolkart/BFM_to_FLAME) to get 'FLAME_albedo_from_BFM.npz', put it into ./preprocess_inversion_data/data
+    
     d. Download [EG3D checkpoint and face alignment models](https://drive.google.com/drive/folders/18cUIvd0w-rnTVzeBpc-adsawiq3Njjla?usp=sharing) and put final_1600.pkl and align.dat in ./inversion/pti_inversion
 
 2. Preprocess data for 3D GAN Inversion:
