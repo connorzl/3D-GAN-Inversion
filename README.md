@@ -34,6 +34,11 @@ Clone the repo:
     ```   
     to visualize the predicted depth, face mask, face mask rendered source image with target expression, and fully rendered source image with target expression (see output folder in this repository for example outputs).   
  
+3. Run 3D GAN Inversion:
+  ```
+  python run_pti.py --experiment_name exp_dir --input_data_path output  --gpu 0 --input_pose_path source_cameras.json --logging_root logs
+  ```
+
 ## Citation
 If you find this work useful to your research, please consider citing:
 ```
