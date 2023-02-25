@@ -36,7 +36,7 @@ Clone the repo:
  
 3. Run 3D GAN Inversion:
   ```
-  python run_pti.py --experiment_name exp_dir --input_data_path output  --gpu 0 --input_pose_path source_cameras.json --logging_root logs)
+  python run_pti.py --experiment_name exp_dir --input_data_path output  --gpu 0 --input_pose_path source_cameras.json --logging_root logs
   ```
 
 ## Citation
