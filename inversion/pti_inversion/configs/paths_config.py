@@ -1,6 +1,6 @@
 ## Pretrained models paths
-eg3d_ffhq = 'pretrained_models/final_1600.pkl'
-dlib = 'pretrained_models/align.dat'
+eg3d_ffhq = 'final_1600.pkl'
+dlib = 'align.dat'
 
 ## Dirs for output files
 checkpoints_dir = './checkpoints'
