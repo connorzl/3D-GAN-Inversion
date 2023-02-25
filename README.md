@@ -37,7 +37,7 @@ Clone the repo:
     cd preprocess_inversion_data
     python generate_dataset.py -i ../inversion_data/source_images  -e ../inversion_data/target_images -s ../inversion_data/output --device cuda:0 
     ```   
-    to visualize the predicted depth, face mask, face mask rendered source image with target expression, and fully rendered source image with target expression (see output folder in this repository for example outputs).   
+    to visualize the predicted depth, face mask, face mask rendered source image with target expression, and fully rendered source image with target expression (see inversion_data/output in this repository for example outputs).   
  
 3. Run 3D GAN Inversion:
   ```
