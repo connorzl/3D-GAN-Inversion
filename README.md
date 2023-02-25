@@ -24,19 +24,22 @@ Clone the repo:
 
 ### Usage
 1. Prepare data   
-    a. download [FLAME model](https://flame.is.tue.mpg.de/download.php), choose **FLAME 2020** and unzip it, copy 'generic_model.pkl' into ./data  
-    b. download [DECA trained model](https://drive.google.com/file/d/1rp8kdyLPvErw2dTmqtjISRVvQLj6Yzje/view?usp=sharing), and put it in ./data (**no unzip required**)  
-    c. (Optional) follow the instructions for the [Albedo model](https://github.com/TimoBolkart/BFM_to_FLAME) to get 'FLAME_albedo_from_BFM.npz', put it into ./data
+    a. download [FLAME model](https://flame.is.tue.mpg.de/download.php), choose **FLAME 2020** and unzip it, copy 'generic_model.pkl' into ./preprocess_inversion_data/data  
+    b. download [DECA trained model](https://drive.google.com/file/d/1rp8kdyLPvErw2dTmqtjISRVvQLj6Yzje/view?usp=sharing), and put it in ./preprocess_inversion_data/data (**no unzip required**)  
+    c. (Optional) follow the instructions for the [Albedo model](https://github.com/TimoBolkart/BFM_to_FLAME) to get 'FLAME_albedo_from_BFM.npz', put it into ./preprocess_inversion_data/data
+    d. Download [EG3D checkpoint and face alignment models](https://drive.google.com/drive/folders/18cUIvd0w-rnTVzeBpc-adsawiq3Njjla?usp=sharing) and put final_1600.pkl and align.dat in ./inversion/pti_inversion
 
 2. Preprocess data for 3D GAN Inversion:
     ```
-    python generate_dataset.py -i source_images  -e target_images -s output --device cuda:0 
+    cd preprocess_inversion_data
+    python generate_dataset.py -i ../inversion_data/source_images  -e ../inversion_data/target_images -s ../inversion_data/output --device cuda:0 
     ```   
     to visualize the predicted depth, face mask, face mask rendered source image with target expression, and fully rendered source image with target expression (see output folder in this repository for example outputs).   
  
 3. Run 3D GAN Inversion:
   ```
-  python run_pti.py --experiment_name exp_dir --input_data_path output  --gpu 0 --input_pose_path source_cameras.json --logging_root logs
+  cd inversion/pti_inversion
+  python run_pti.py --experiment_name exp_dir --input_data_path inversion_data/output  --gpu 0 --input_pose_path inversion_data/source_poses/cameras.json --logging_root logs
   ```
 
 ## Citation
