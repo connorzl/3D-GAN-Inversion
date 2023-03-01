@@ -43,7 +43,11 @@ Clone the repo:
   ```
   cd inversion/pti_inversion
   python run_pti.py --experiment_name exp_dir --input_data_path ../../inversion_data/output --input_pose_path ../../inversion_data/source_poses/cameras.json --logging_root logs --gpu 0
+  python composite_results.py --input_logs_path adam_voxceleb_logs/adam_voxceleb --input_data_path ../../inversion_data/output --input_pose_path ../../inversion_data/source_poses/cameras.json
   ```
+ 
+  
+
 
 ## Citation
 If you find this work useful to your research, please consider citing:
