@@ -46,10 +46,6 @@ def project(
         writer=None,
         write_video=False
 ):
-    print("W PROJECTOR")
-    w_samples = G.mapping(torch.rand((100,512)).to(device), torch.rand((100, 25)).to(device))  # [N, L, C]
-    print("done mapping")
-
     if mask is None:
         mask = torch.ones_like(target)
 
@@ -111,9 +107,7 @@ def project(
     # Compute w stats.
     logprint(f'Computing W midpoint and stddev using {w_avg_samples} samples...')
     z_samples = np.random.RandomState(123).randn(w_avg_samples, G.z_dim)
-    print("calling mapping")
     w_samples = G.mapping(torch.from_numpy(z_samples).to(device), target_pose.repeat(w_avg_samples, 1))  # [N, L, C]
-    print("done calling mapping")
 
     w_samples = w_samples[:, :1, :].cpu().numpy().astype(np.float32)  # [N, 1, C]
     w_avg = np.mean(w_samples, axis=0, keepdims=True)  # [1, 1, C]
