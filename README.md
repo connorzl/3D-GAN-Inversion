@@ -42,7 +42,7 @@ Clone the repo:
 3. Run 3D GAN Inversion:
   ```
   cd inversion/pti_inversion
-  python run_pti.py --experiment_name exp_dir --input_data_path inversion_data/output  --gpu 0 --input_pose_path inversion_data/source_poses/cameras.json --logging_root logs
+  python run_pti.py --experiment_name exp_dir --input_data_path ../../inversion_data/output  --gpu 0 --input_pose_path ../../inversion_data/source_poses/cameras.json --logging_root logs
   ```
 
 ## Citation
