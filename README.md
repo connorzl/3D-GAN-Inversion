@@ -1,8 +1,6 @@
-# Modified Implementation of DECA: Detailed Expression Capture and Animation (SIGGRAPH2021)
+# 3D GAN Inversion for Controllable Portrait Image Animation
 
-This is a modified repository of the [official Pytorch implementation of DECA](https://github.com/yfeng95/DECA), used by [3D GAN Inversion for Controllable Portrait Image Animation](https://arxiv.org/abs/2203.13441). 
-
-DECA reconstructs a 3D head model with detailed facial geometry from a single input image. The resulting 3D head model can be easily animated. Please refer to the [arXiv paper](https://arxiv.org/abs/2012.04012) for more details.
+This is the official Pytorch implementation of [3D GAN Inversion for Controllable Portrait Image Animation](https://arxiv.org/abs/2203.13441), which uses modified implementations of [DECA: Detailed Expression Capture and Animation](https://github.com/yfeng95/DECA) and [PTI: Pivotal Tuning for Latent-based editing of Real Images](https://github.com/danielroich/PTI).
 
 ## Getting Started
 Clone the repo:
@@ -30,9 +28,9 @@ Clone the repo:
     
     c. (Optional) follow the instructions for the [Albedo model](https://github.com/TimoBolkart/BFM_to_FLAME) to get 'FLAME_albedo_from_BFM.npz', put it into ./preprocess_inversion_data/data
     
-    d. Download [EG3D checkpoint and face alignment models](https://drive.google.com/drive/folders/18cUIvd0w-rnTVzeBpc-adsawiq3Njjla?usp=sharing) and put final_1600.pkl and align.dat in ./inversion/pti_inversion
+    d. download pretrained [EG3D checkpoint and face alignment models](https://drive.google.com/drive/folders/18cUIvd0w-rnTVzeBpc-adsawiq3Njjla?usp=sharing) and put final_1600.pkl and align.dat in ./inversion/pti_inversion
     
-    e. Obtain camera pose extrinsics for each source and target frame input. We use [Deep3DFaceReconstruction](https://github.com/microsoft/Deep3DFaceReconstruction) in our paper. See [inversion_data](https://github.com/connorzl/DECA/tree/master/inversion_data) for examples of expected input.
+    e. estimate camera pose extrinsics for each source and target frame input. We use [Deep3DFaceReconstruction](https://github.com/microsoft/Deep3DFaceReconstruction) in our paper. See [inversion_data](https://github.com/connorzl/DECA/tree/master/inversion_data) for examples of expected input.
 
 2. Preprocess data for 3D GAN Inversion:
     ```
