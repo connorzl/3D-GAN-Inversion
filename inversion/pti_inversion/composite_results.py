@@ -2,8 +2,6 @@ import sys
 import os
 sys.path.append("../3dgan")
 
-import mrcfile
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import json
@@ -20,6 +18,13 @@ from tqdm import tqdm
 from skimage.morphology.convex_hull import convex_hull_image
 from glob import glob
 from training import triplane
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input_logs_path", default="")
+parser.add_argument("--input_data_path", default="")
+parser.add_argument("--input_pose_path", default="")
+parser.add_argument("--target_pose_path", default="")
 
 np.random.seed(1989)
 torch.manual_seed(1989)
@@ -58,8 +63,8 @@ def sample_w(G, pose):
 
 
 def get_init_mask_coords(mask=None):
-    basename = os.path.basename(scene).split('_')[0]
-    default_pose = get_json_pose('/media/data6/connorzl/pigan/S-GAN/stylegan3/pti_inversion_data/3dgan_teaser/source_images/cameras.json', f'{basename}.jpg')
+    basename = os.path.basename(args.input_logs_path).split('_')[0]
+    default_pose = get_json_pose(args.input_pose_path, f'{basename}.jpg')
 
     with torch.no_grad():
         out = G.synthesis(w_full[[0]], default_pose, noise_mode='const', force_fp32=True)
@@ -68,8 +73,8 @@ def get_init_mask_coords(mask=None):
 
         # use default face mask
         if mask is None:
-            mask = skimage.io.imread('/media/data6/connorzl/pigan/S-GAN/stylegan3/pti_inversion_data/3dgan_teaser/deca_source_masks/adam_3dgan_teaser_images/adam_000_mask.jpg').astype(np.float32) / 255.
-            
+            mask = sorted(glob(os.path.join(args.input_data_path, "*_mask.jpg")))[0]
+            mask = skimage.io.imread(mask).astype(np.float32) / 255.
             mask = skimage.transform.resize(mask, (512, 512), order=1)
             mask = torch.from_numpy((mask > 0.5).astype(np.float32)).permute(2, 0, 1)
             mask = morph.closing(mask[None, ...], torch.ones(3, 3)).to(global_config.device)
@@ -131,17 +136,14 @@ def get_projected_mask(coords, intrinsics, cam2world_matrix, ksize=15, std=7):
     return mask
 
 
-def composite_results(use_smoothing=False, write_mrcfile=False):
+def composite_results(use_smoothing=False):
     # initial mask projected into 3D point cloud
     init_mask_coords = get_init_mask_coords()
     pose_buff = []
 
-    # for idx in tqdm(range(450)):
-    #idxs = [0, 9, 19, 29, 39, 49, 59, 69, 79, 89, 99]
-    for idx in tqdm(range(0, 281)):
+    for idx in tqdm(range(0, 100)):
         # pose for next frame
-        target_pose = get_json_pose(json_fname, f'obama{idx+1:03d}.jpg')
-        #target_pose = get_json_pose(json_fname, f'frames{idx+1:03d}.jpg')
+        target_pose = get_json_pose(args.target_pose_path, f'frames{idx+1:03d}.jpg')
 
         if use_smoothing:
             if len(pose_buff) < 2:
@@ -170,39 +172,21 @@ def composite_results(use_smoothing=False, write_mrcfile=False):
         composited = mask * image_fg + (1-mask) * image_bg
         out_img = (np.clip(composited[0].permute(1, 2, 0).cpu().numpy(), 0, 1) * 255).astype(np.uint8)
 
-        os.makedirs(f'{scene}/composite', exist_ok=True)
-        skimage.io.imsave(f'{scene}/composite/{idx:03d}.png', out_img)
+        os.makedirs(f'{args.input_logs_path}/composite', exist_ok=True)
+        skimage.io.imsave(f'{args.input_logs_path}/composite/{idx:03d}.png', out_img)
 
 
 if __name__ == '__main__':
-    global json_fname, out_dir, logdir, G, w_full, scene
+    global out_dir, logdir, G, w_full, scene, args
 
-    scenes = sorted(glob('./logs_teaser_new/*'))
-    scenes = [s for s in scenes if not 'american' in s]
+    args = parser.parse_args()
+    out_dir = 'output_2000'
+    logdir = os.path.join(args.input_logs_path, out_dir)
 
-    scenes = scenes[:1]
-    vox_videos = ["/media/data6/connorzl/pigan/S-GAN/stylegan3/pti_inversion_data/3dgan_targets/obama"]
-    print("vox_videos:", vox_videos)
+    G = load_tuned_G(None, None, full_path=f'{logdir}/model.pt')
+    G.sample_mixed = triplane.SRPosedGenerator.sample_mixed.__get__(G)
+    G.rendering_kwargs['depth_resolution'] *= 4
+    G.rendering_kwargs['depth_resolution_importance'] *= 4
+    w_full = torch.from_numpy(np.load(f'{args.input_logs_path}/w.npy')).to(global_config.device)
 
-    for idx, s in enumerate(scenes):
-     
-        scene = s
-        print("current scene:", scene)
-
-        # try:
-        json_fname = f'/media/data6/connorzl/pigan/S-GAN/stylegan3/pti_inversion_data/3dgan_targets/obama_poses/obama_small_cameras.json'
-
-        out_dir = 'output_10000'
-        logdir = os.path.join(scene, out_dir)
-
-        G = load_tuned_G(None, None, full_path=f'{logdir}/model.pt')
-        G.sample_mixed = triplane.SRPosedGenerator.sample_mixed.__get__(G)
-
-        G.rendering_kwargs['depth_resolution'] *= 4
-        G.rendering_kwargs['depth_resolution_importance'] *= 4
-
-        w_full = torch.from_numpy(np.load(f'{scene}/w.npy')).to(global_config.device)
-
-        composite_results(use_smoothing=True, write_mrcfile=False)
-        # except Exception as e:
-        #     print(e) 
+    composite_results(use_smoothing=True)
