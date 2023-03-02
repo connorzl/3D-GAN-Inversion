@@ -42,22 +42,16 @@ Clone the repo:
 3. Run 3D GAN Inversion:
   ```
   cd inversion/pti_inversion
-  python run_pti.py --experiment_name exp_dir --input_data_path inversion_data/output  --gpu 0 --input_pose_path inversion_data/source_poses/cameras.json --logging_root logs
+  python run_inversion.py --experiment_name adam_voxceleb --input_data_path ../../inversion_data/output --input_pose_path ../../inversion_data/source_poses/cameras.json --logging_root logs --gpu 0
+  python composite_results.py --input_logs_path adam_voxceleb_logs/adam_voxceleb --input_data_path ../../inversion_data/output --input_pose_path ../../inversion_data/source_poses/cameras.json --target_pose_path ../../inversion_data/target_poses/cameras.json
   ```
+ 
+  
+
 
 ## Citation
 If you find this work useful to your research, please consider citing:
 ```
-@inproceedings{DECA:Siggraph2021,
-  title={Learning an Animatable Detailed {3D} Face Model from In-The-Wild Images},
-  author={Feng, Yao and Feng, Haiwen and Black, Michael J. and Bolkart, Timo},
-  journal = {ACM Transactions on Graphics, (Proc. SIGGRAPH)}, 
-  volume = {40}, 
-  number = {8}, 
-  year = {2021}, 
-  url = {https://doi.org/10.1145/3450626.3459936} 
-}
-
 @article{lin20223d,
   title={3d gan inversion for controllable portrait image animation},
   author={Lin, Connor Z and Lindell, David B and Chan, Eric R and Wetzstein, Gordon},
